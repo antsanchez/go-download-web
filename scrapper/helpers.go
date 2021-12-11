@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/antsanchez/godownloadweb/commons"
+	"github.com/antsanchez/go-download-web/commons"
 )
 
 var (

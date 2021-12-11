@@ -15,38 +15,36 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/antsanchez/godownloadweb/commons"
-	"github.com/antsanchez/godownloadweb/download"
-	"github.com/antsanchez/godownloadweb/scrapper"
-	"github.com/antsanchez/godownloadweb/sitemap"
+	"github.com/antsanchez/go-download-web/commons"
+	"github.com/antsanchez/go-download-web/download"
+	"github.com/antsanchez/go-download-web/scrapper"
+	"github.com/antsanchez/go-download-web/sitemap"
 )
 
 func main() {
-	var domain, newDomain string
-	if len(os.Args) == 1 {
-		fmt.Println("URL can not be empty")
-		os.Exit(1)
-	}
-	domain = os.Args[1]
-
-	if len(os.Args) == 3 {
-		newDomain = os.Args[2]
-	}
-
+	domain := flag.String("u", "", "URL to copy")
+	newDomain := flag.String("new", "", "New URL")
 	simultaneus := flag.Int("s", 3, "Number of concurrent connections")
 	scrapper.UseQueries = flag.Bool("q", false, "Ignore queries on URLs")
 	flag.Parse()
 
-	download.Conf.OldDomain = domain
-	download.Conf.NewDomain = newDomain
+	if *domain == "" {
+		log.Fatal("URL cannot be empty! Please, use '-u <URL>'")
+	}
 
-	fmt.Println("Domain:", domain)
-	fmt.Println("New Domain: ", newDomain)
+	download.Conf.OldDomain = *domain
+	download.Conf.NewDomain = *newDomain
+
+	fmt.Println("Domain:", *domain)
+	if *newDomain != "" {
+		fmt.Println("New Domain: ", *newDomain)
+	}
 	fmt.Println("Simultaneus:", *simultaneus)
 	fmt.Println("Use Queries:", *scrapper.UseQueries)
 
@@ -75,12 +73,12 @@ func main() {
 		close(finished)
 		close(scanning)
 
-		fmt.Printf("\nTime finished sitemap %s\n", time.Since(start))
-		fmt.Printf("Index: %6d\n", len(indexed))
+		fmt.Printf("\nDuration: %s\n", time.Since(start))
+		fmt.Printf("Number of pages: %6d\n", len(indexed))
 	}()
 
 	// Do First call to domain
-	resp, err := http.Get(domain)
+	resp, err := http.Get(*domain)
 	if err != nil {
 		fmt.Println("Domain could not be reached!")
 		return
@@ -92,8 +90,8 @@ func main() {
 	commons.Root = resp.Request.URL.String()
 
 	// Take the links from the startsite
-	scrapper.TakeLinks(domain, started, finished, scanning, newLinks, pages, attachments)
-	seen[domain] = true
+	scrapper.TakeLinks(*domain, started, finished, scanning, newLinks, pages, attachments)
+	seen[*domain] = true
 
 	for {
 		select {

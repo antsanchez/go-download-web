@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/antsanchez/godownloadweb/commons"
+	"github.com/antsanchez/go-download-web/commons"
 	"golang.org/x/net/html"
 )
 
