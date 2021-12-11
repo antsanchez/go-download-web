@@ -1,10 +1,11 @@
 # Go Download Web
-
 A simple command-line application to download an entire online website, including CSS, JSS, and other assets. 
 Coded with Go.
 
-## Installation
+## Project status
+There are still some to-do's, and some refactoring is needed, but the app is already functional. 
 
+## Installation
 There is nothing special to do here, just download the code, build it as you would do with any other Go app, and you are set to go.
 
 ```bash
@@ -14,7 +15,6 @@ $ go build
 ```
 
 ## Usage
-
 ```bash
 # Default mode:
 $ ./go-download-web -u https://example.com
