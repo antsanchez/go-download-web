@@ -18,7 +18,7 @@ var (
 )
 
 // isInternLink checks if a link is intern
-func isInternLink(link string) bool {
+func (s *Scrapper) isInternLink(link string) bool {
 	if strings.Index(link, commons.Root) == 0 {
 		return true
 	}
@@ -26,12 +26,12 @@ func isInternLink(link string) bool {
 }
 
 // removeQuery removes the query parameters from the given link
-func removeQuery(link string) string {
+func (s *Scrapper) removeQuery(link string) string {
 	return strings.Split(link, "?")[0]
 }
 
 // isStart cheks if the site is the startsite
-func isStart(link string) bool {
+func (s *Scrapper) isStart(link string) bool {
 	if strings.Compare(link, commons.Root) == 0 {
 		return true
 	}
@@ -39,7 +39,7 @@ func isStart(link string) bool {
 }
 
 // sanitizeURL sanitizes a URL
-func sanitizeURL(link string) string {
+func (s *Scrapper) sanitizeURL(link string) string {
 	for _, fal := range falseURLs {
 		if strings.Contains(link, fal) {
 			return ""
@@ -54,15 +54,15 @@ func sanitizeURL(link string) string {
 
 	tram := strings.Split(link, "#")[0]
 
-	if !*UseQueries {
-		tram = removeQuery(tram)
+	if !s.UseQueries {
+		tram = s.removeQuery(tram)
 	}
 
 	return tram
 }
 
 // IsValidExtension check if an extension is valid
-func IsValidExtension(link string) bool {
+func (s *Scrapper) IsValidExtension(link string) bool {
 	for _, extension := range extensions {
 		if strings.Contains(strings.ToLower(link), extension) {
 			return false
@@ -72,8 +72,8 @@ func IsValidExtension(link string) bool {
 }
 
 // isValidLink checks if a link is valid
-func isValidLink(link string) bool {
-	if isInternLink(link) && !isStart(link) && IsValidExtension(link) {
+func (s *Scrapper) isValidLink(link string) bool {
+	if s.isInternLink(link) && !s.isStart(link) && s.IsValidExtension(link) {
 		return true
 	}
 
@@ -81,8 +81,8 @@ func isValidLink(link string) bool {
 }
 
 // isValidAttachment checks if the link is a valid extension
-func isValidAttachment(link string) bool {
-	if isInternLink(link) && !isStart(link) && !IsValidExtension(link) {
+func (s *Scrapper) isValidAttachment(link string) bool {
+	if s.isInternLink(link) && !s.isStart(link) && !s.IsValidExtension(link) {
 		return true
 	}
 
@@ -90,7 +90,7 @@ func isValidAttachment(link string) bool {
 }
 
 // doesLinkExist checks if a link exists in a given slice
-func doesLinkExist(newLink commons.Links, existingLinks []commons.Links) (exists bool) {
+func (s *Scrapper) doesLinkExist(newLink commons.Links, existingLinks []commons.Links) (exists bool) {
 	for _, val := range existingLinks {
 		if strings.Compare(newLink.Href, val.Href) == 0 {
 			exists = true
@@ -101,7 +101,7 @@ func doesLinkExist(newLink commons.Links, existingLinks []commons.Links) (exists
 }
 
 // IsURLInSlice checks if a URL is in a slice
-func IsURLInSlice(search string, array []string) bool {
+func (s *Scrapper) IsURLInSlice(search string, array []string) bool {
 	withSlash := search[:len(search)-1]
 	withoutSlash := search
 
@@ -120,7 +120,7 @@ func IsURLInSlice(search string, array []string) bool {
 }
 
 // IsLinkScanned checks if a link has already been scanned
-func IsLinkScanned(link string, scanned []string) (exists bool) {
+func (s *Scrapper) IsLinkScanned(link string, scanned []string) (exists bool) {
 	for _, val := range scanned {
 		if strings.Compare(link, val) == 0 {
 			exists = true
@@ -131,7 +131,7 @@ func IsLinkScanned(link string, scanned []string) (exists bool) {
 }
 
 // getURLEmbeeded from HTML or CSS
-func getURLEmbeeded(body string) (url string) {
+func (s *Scrapper) getURLEmbeeded(body string) (url string) {
 	valid := validURL.Find([]byte(body))
 	if valid == nil {
 		return
@@ -169,7 +169,7 @@ func getURLEmbeeded(body string) (url string) {
 }
 
 // GetInsideAttachments gets inside CSS Files
-func GetInsideAttachments(url string) (attachments []string) {
+func (s *Scrapper) GetInsideAttachments(url string) (attachments []string) {
 	if commons.IsFinal(url) {
 		// if the url is a final url in a folder, like example.com/path/
 		// this will create the folder "path" and, inside, the index.html file
@@ -193,12 +193,12 @@ func GetInsideAttachments(url string) (attachments []string) {
 		for _, b := range blocks {
 			rules := strings.Split(string(b), ";")
 			for _, r := range rules {
-				found := getURLEmbeeded(r)
+				found := s.getURLEmbeeded(r)
 				if found != "" {
 					link, err := resp.Request.URL.Parse(found)
 					if err == nil {
-						foundLink := sanitizeURL(link.String())
-						if isValidAttachment(foundLink) {
+						foundLink := s.sanitizeURL(link.String())
+						if s.isValidAttachment(foundLink) {
 							attachments = append(attachments, foundLink)
 						}
 					}

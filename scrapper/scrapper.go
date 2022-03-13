@@ -10,11 +10,18 @@ import (
 	"golang.org/x/net/html"
 )
 
-// UseQueries true if query parameters should be also crawled
-var UseQueries *bool
+type Scrapper struct {
+	UseQueries bool
+}
+
+func New(useQueries bool) Scrapper {
+	return Scrapper{
+		UseQueries: useQueries,
+	}
+}
 
 // getLinks Get the links from a HTML site
-func getLinks(domain string) (page commons.Page, attachments []string, err error) {
+func (s *Scrapper) getLinks(domain string) (page commons.Page, attachments []string, err error) {
 	resp, err := http.Get(domain)
 	if err != nil {
 		return
@@ -35,12 +42,12 @@ func getLinks(domain string) (page commons.Page, attachments []string, err error
 		for _, a := range n.Attr {
 			if a.Key == "style" {
 				if strings.Contains(a.Val, "url(") {
-					found := getURLEmbeeded(a.Val)
+					found := s.getURLEmbeeded(a.Val)
 					if found != "" {
 						link, err := resp.Request.URL.Parse(found)
 						if err == nil {
-							foundLink := sanitizeURL(link.String())
-							if isValidAttachment(foundLink) {
+							foundLink := s.sanitizeURL(link.String())
+							if s.isValidAttachment(foundLink) {
 								attachments = append(attachments, foundLink)
 							}
 						}
@@ -69,10 +76,10 @@ func getLinks(domain string) (page commons.Page, attachments []string, err error
 				if a.Key == "href" {
 					link, err := resp.Request.URL.Parse(a.Val)
 					if err == nil {
-						foundLink := sanitizeURL(link.String())
-						if isValidAttachment(foundLink) {
+						foundLink := s.sanitizeURL(link.String())
+						if s.isValidAttachment(foundLink) {
 							attachments = append(attachments, foundLink)
-						} else if isValidLink(foundLink) {
+						} else if s.isValidLink(foundLink) {
 							page.Links = append(page.Links, commons.Links{Href: foundLink})
 						}
 					}
@@ -86,8 +93,8 @@ func getLinks(domain string) (page commons.Page, attachments []string, err error
 				if a.Key == "src" {
 					link, err := resp.Request.URL.Parse(a.Val)
 					if err == nil {
-						foundLink := sanitizeURL(link.String())
-						if isValidAttachment(foundLink) {
+						foundLink := s.sanitizeURL(link.String())
+						if s.isValidAttachment(foundLink) {
 							attachments = append(attachments, foundLink)
 						}
 					}
@@ -101,8 +108,8 @@ func getLinks(domain string) (page commons.Page, attachments []string, err error
 				if a.Key == "src" {
 					link, err := resp.Request.URL.Parse(a.Val)
 					if err == nil {
-						foundLink := sanitizeURL(link.String())
-						if isValidAttachment(foundLink) {
+						foundLink := s.sanitizeURL(link.String())
+						if s.isValidAttachment(foundLink) {
 							attachments = append(attachments, foundLink)
 						}
 					}
@@ -112,8 +119,8 @@ func getLinks(domain string) (page commons.Page, attachments []string, err error
 					for _, val := range links {
 						link, err := resp.Request.URL.Parse(val)
 						if err == nil {
-							foundLink := sanitizeURL(link.String())
-							if isValidAttachment(foundLink) {
+							foundLink := s.sanitizeURL(link.String())
+							if s.isValidAttachment(foundLink) {
 								attachments = append(attachments, foundLink)
 							}
 						}
@@ -131,11 +138,11 @@ func getLinks(domain string) (page commons.Page, attachments []string, err error
 				if a.Key == "href" {
 					link, err := resp.Request.URL.Parse(a.Val)
 					if err == nil {
-						foundLink := sanitizeURL(link.String())
-						if isValidLink(foundLink) {
+						foundLink := s.sanitizeURL(link.String())
+						if s.isValidLink(foundLink) {
 							ok = true
 							newLink.Href = foundLink
-						} else if isValidAttachment(foundLink) {
+						} else if s.isValidAttachment(foundLink) {
 							attachments = append(attachments, foundLink)
 						}
 					}
@@ -143,7 +150,7 @@ func getLinks(domain string) (page commons.Page, attachments []string, err error
 
 			}
 
-			if ok && !doesLinkExist(newLink, page.Links) {
+			if ok && !s.doesLinkExist(newLink, page.Links) {
 				page.Links = append(page.Links, newLink)
 			}
 		}
@@ -157,7 +164,7 @@ func getLinks(domain string) (page commons.Page, attachments []string, err error
 }
 
 // TakeLinks take links from the given site
-func TakeLinks(toScan string, started chan int, finished chan int, scanning chan int, newLinks chan []commons.Links, pages chan commons.Page, attachments chan []string) {
+func (s *Scrapper) TakeLinks(toScan string, started chan int, finished chan int, scanning chan int, newLinks chan []commons.Links, pages chan commons.Page, attachments chan []string) {
 	started <- 1
 	scanning <- 1
 	defer func() {
@@ -167,7 +174,7 @@ func TakeLinks(toScan string, started chan int, finished chan int, scanning chan
 	}()
 
 	// Get links
-	page, attached, err := getLinks(toScan)
+	page, attached, err := s.getLinks(toScan)
 	if err != nil {
 		return
 	}

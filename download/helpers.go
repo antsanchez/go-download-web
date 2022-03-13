@@ -7,7 +7,7 @@ import (
 	"github.com/antsanchez/go-download-web/commons"
 )
 
-func hasPaths(url string) bool {
+func (d *Downloader) hasPaths(url string) bool {
 	paths := strings.Split(url, "/")
 	if len(paths) > 1 {
 		return true
@@ -15,7 +15,7 @@ func hasPaths(url string) bool {
 	return false
 }
 
-func getOnlyPath(url string) (path string) {
+func (d *Downloader) getOnlyPath(url string) (path string) {
 
 	paths := strings.Split(url, "/")
 	if len(paths) <= 1 {
@@ -28,12 +28,12 @@ func getOnlyPath(url string) (path string) {
 }
 
 // GetPath returns only the path, without domain, from the given link
-func GetPath(link string) string {
+func (d *Downloader) GetPath(link string) string {
 	return strings.Replace(link, commons.Root, "", 1)
 }
 
 // exists returns whether the given file or directory exists
-func exists(path string) bool {
+func (d *Downloader) exists(path string) bool {
 	_, err := os.Stat(path)
 	if err == nil {
 		return true

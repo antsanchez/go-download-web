@@ -31,22 +31,22 @@ func main() {
 	domain := flag.String("u", "", "URL to copy")
 	newDomain := flag.String("new", "", "New URL")
 	simultaneus := flag.Int("s", 3, "Number of concurrent connections")
-	scrapper.UseQueries = flag.Bool("q", false, "Ignore queries on URLs")
+	useQueries := flag.Bool("q", false, "Ignore queries on URLs")
 	flag.Parse()
 
 	if *domain == "" {
 		log.Fatal("URL cannot be empty! Please, use '-u <URL>'")
 	}
 
-	download.Conf.OldDomain = *domain
-	download.Conf.NewDomain = *newDomain
+	s := scrapper.New(*useQueries)
+	d := download.New(*domain, *newDomain)
 
-	fmt.Println("Domain:", *domain)
+	fmt.Println("Domain:", d.Conf.OldDomain)
 	if *newDomain != "" {
-		fmt.Println("New Domain: ", *newDomain)
+		fmt.Println("New Domain: ", d.Conf.NewDomain)
 	}
 	fmt.Println("Simultaneus:", *simultaneus)
-	fmt.Println("Use Queries:", *scrapper.UseQueries)
+	fmt.Println("Use Queries:", s.UseQueries)
 
 	if *simultaneus < 1 {
 		fmt.Println("There can't be less than 1 simulataneous conexions")
@@ -90,7 +90,7 @@ func main() {
 	commons.Root = resp.Request.URL.String()
 
 	// Take the links from the startsite
-	scrapper.TakeLinks(*domain, started, finished, scanning, newLinks, pages, attachments)
+	s.TakeLinks(*domain, started, finished, scanning, newLinks, pages, attachments)
 	seen[*domain] = true
 
 	for {
@@ -99,22 +99,22 @@ func main() {
 			for _, link := range links {
 				if !seen[link.Href] {
 					seen[link.Href] = true
-					go scrapper.TakeLinks(link.Href, started, finished, scanning, newLinks, pages, attachments)
+					go s.TakeLinks(link.Href, started, finished, scanning, newLinks, pages, attachments)
 				}
 			}
 		case page := <-pages:
-			if !scrapper.IsURLInSlice(page.URL, indexed) {
+			if !s.IsURLInSlice(page.URL, indexed) {
 				indexed = append(indexed, page.URL)
 			}
 
 			if !page.NoIndex {
-				if !scrapper.IsURLInSlice(page.URL, forSitemap) {
+				if !s.IsURLInSlice(page.URL, forSitemap) {
 					forSitemap = append(forSitemap, page.URL)
 				}
 			}
 		case attachment := <-attachments:
 			for _, link := range attachment {
-				if !scrapper.IsURLInSlice(link, files) {
+				if !s.IsURLInSlice(link, files) {
 					files = append(files, link)
 				}
 			}
@@ -129,9 +129,9 @@ func main() {
 	// Get Inside Attachments
 	for _, attachedFile := range files {
 		if strings.Contains(attachedFile, ".css") {
-			moreAttachments := scrapper.GetInsideAttachments(attachedFile)
+			moreAttachments := s.GetInsideAttachments(attachedFile)
 			for _, link := range moreAttachments {
-				if !scrapper.IsURLInSlice(link, files) {
+				if !s.IsURLInSlice(link, files) {
 					fmt.Println("Appended: ", link)
 					files = append(files, link)
 				}
@@ -146,8 +146,8 @@ func main() {
 	sitemap.CreateSitemap(forSitemap, "website/sitemap.xml")
 
 	// Download the complete website
-	download.All(indexed)
+	d.All(indexed)
 
 	// Download the complete attachments
-	download.Attachments(files)
+	d.Attachments(files)
 }

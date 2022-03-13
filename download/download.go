@@ -16,11 +16,21 @@ type Settings struct {
 	NewDomain string // NewDomain to rewrite the download HTML sites
 }
 
-// Conf is where to store the settigns
-var Conf Settings
+type Downloader struct {
+	Conf Settings
+}
+
+func New(oldDomain, newDomain string) Downloader {
+	return Downloader{
+		Conf: Settings{
+			OldDomain: oldDomain,
+			NewDomain: newDomain,
+		},
+	}
+}
 
 // Download a single link
-func download(url string, filename string, changeDomain bool) (err error) {
+func (d *Downloader) download(url string, filename string, changeDomain bool) (err error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return
@@ -34,12 +44,12 @@ func download(url string, filename string, changeDomain bool) (err error) {
 	defer f.Close()
 
 	// Change domain
-	if changeDomain && Conf.NewDomain != "" {
+	if changeDomain && d.Conf.NewDomain != "" {
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(resp.Body)
 		newStr := buf.String()
 
-		newStr = strings.ReplaceAll(newStr, Conf.OldDomain, Conf.NewDomain)
+		newStr = strings.ReplaceAll(newStr, d.Conf.OldDomain, d.Conf.NewDomain)
 
 		newContent := bytes.NewBufferString(newStr)
 		_, err = io.Copy(f, newContent)
@@ -52,47 +62,47 @@ func download(url string, filename string, changeDomain bool) (err error) {
 }
 
 // All Download the complete website
-func All(indexed []string) {
+func (d *Downloader) All(indexed []string) {
 	for _, url := range indexed {
-		filepath := GetPath(url)
+		filepath := d.GetPath(url)
 		if filepath == "" {
 			filepath = "/index.html"
 		}
 
 		// Get last path
-		if hasPaths(filepath) {
+		if d.hasPaths(filepath) {
 			if commons.IsFinal(filepath) {
 				// if the url is a final url in a folder, like example.com/path
 				// this will create the folder "path" and, inside, the index.html file
-				if !exists(commons.PATH + filepath) {
+				if !d.exists(commons.PATH + filepath) {
 					os.MkdirAll(commons.PATH+filepath, 0755) // first create directory
 					filepath = filepath + "index.html"
 				}
 			} else {
 				// if the url is not a final url in a folder, like example.com/path/bum.html
 				// this will create the folder "path" and, inside, the bum.html file
-				path := getOnlyPath(filepath)
-				if !exists(commons.PATH + path) {
+				path := d.getOnlyPath(filepath)
+				if !d.exists(commons.PATH + path) {
 					os.MkdirAll(commons.PATH+path, 0755) // first create directory
 				}
 			}
 
 		}
 
-		download(url, commons.PATH+filepath, true)
+		d.download(url, commons.PATH+filepath, true)
 	}
 }
 
 // Attachments download all attachments
-func Attachments(attachments []string) {
+func (d *Downloader) Attachments(attachments []string) {
 	for _, url := range attachments {
-		filepath := GetPath(url)
+		filepath := d.GetPath(url)
 		if filepath == "" {
 			continue
 		}
 
 		// Get last path
-		if hasPaths(filepath) {
+		if d.hasPaths(filepath) {
 			if commons.IsFinal(filepath) {
 				// if the url is a final url in a folder, like example.com/path/
 				// this will create the folder "path" and, inside, the index.html file
@@ -100,12 +110,12 @@ func Attachments(attachments []string) {
 				url = commons.RemoveLastSlash(url)
 			}
 
-			path := getOnlyPath(filepath)
-			if !exists(commons.PATH + path) {
+			path := d.getOnlyPath(filepath)
+			if !d.exists(commons.PATH + path) {
 				os.MkdirAll(commons.PATH+path, 0755) // first create directory
 			}
 		}
 
-		download(url, commons.PATH+filepath, false)
+		d.download(url, commons.PATH+filepath, false)
 	}
 }
