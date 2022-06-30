@@ -22,7 +22,7 @@ $ ./go-download-web -u https://example.com
 # Setting the number of concurrent connections to 10:
 $ ./go-download-web -u https://example.com -s 10
 
-# Also scrapping URLs with query params:
+# Scrape a website without ignoring query params on URLs
 $ ./go-download-web -u https://example.com -q
 
 # Change the domain name of the downloaded copy:

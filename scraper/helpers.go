@@ -1,9 +1,10 @@
-package scrapper
+package scraper
 
 import (
 	"bytes"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 
@@ -18,28 +19,22 @@ var (
 )
 
 // isInternLink checks if a link is intern
-func (s *Scrapper) isInternLink(link string) bool {
-	if strings.Index(link, commons.Root) == 0 {
-		return true
-	}
-	return false
+func (s *Scraper) isInternLink(link string) bool {
+	return strings.Index(link, s.Root) == 0
 }
 
 // removeQuery removes the query parameters from the given link
-func (s *Scrapper) removeQuery(link string) string {
+func (s *Scraper) removeQuery(link string) string {
 	return strings.Split(link, "?")[0]
 }
 
 // isStart cheks if the site is the startsite
-func (s *Scrapper) isStart(link string) bool {
-	if strings.Compare(link, commons.Root) == 0 {
-		return true
-	}
-	return false
+func (s *Scraper) isStart(link string) bool {
+	return strings.Compare(link, s.Root) == 0
 }
 
 // sanitizeURL sanitizes a URL
-func (s *Scrapper) sanitizeURL(link string) string {
+func (s *Scraper) sanitizeURL(link string) string {
 	for _, fal := range falseURLs {
 		if strings.Contains(link, fal) {
 			return ""
@@ -62,7 +57,7 @@ func (s *Scrapper) sanitizeURL(link string) string {
 }
 
 // IsValidExtension check if an extension is valid
-func (s *Scrapper) IsValidExtension(link string) bool {
+func (s *Scraper) IsValidExtension(link string) bool {
 	for _, extension := range extensions {
 		if strings.Contains(strings.ToLower(link), extension) {
 			return false
@@ -72,7 +67,7 @@ func (s *Scrapper) IsValidExtension(link string) bool {
 }
 
 // isValidLink checks if a link is valid
-func (s *Scrapper) isValidLink(link string) bool {
+func (s *Scraper) isValidLink(link string) bool {
 	if s.isInternLink(link) && !s.isStart(link) && s.IsValidExtension(link) {
 		return true
 	}
@@ -81,7 +76,7 @@ func (s *Scrapper) isValidLink(link string) bool {
 }
 
 // isValidAttachment checks if the link is a valid extension
-func (s *Scrapper) isValidAttachment(link string) bool {
+func (s *Scraper) isValidAttachment(link string) bool {
 	if s.isInternLink(link) && !s.isStart(link) && !s.IsValidExtension(link) {
 		return true
 	}
@@ -90,7 +85,7 @@ func (s *Scrapper) isValidAttachment(link string) bool {
 }
 
 // doesLinkExist checks if a link exists in a given slice
-func (s *Scrapper) doesLinkExist(newLink commons.Links, existingLinks []commons.Links) (exists bool) {
+func (s *Scraper) doesLinkExist(newLink Links, existingLinks []Links) (exists bool) {
 	for _, val := range existingLinks {
 		if strings.Compare(newLink.Href, val.Href) == 0 {
 			exists = true
@@ -101,7 +96,7 @@ func (s *Scrapper) doesLinkExist(newLink commons.Links, existingLinks []commons.
 }
 
 // IsURLInSlice checks if a URL is in a slice
-func (s *Scrapper) IsURLInSlice(search string, array []string) bool {
+func (s *Scraper) IsURLInSlice(search string, array []string) bool {
 	withSlash := search[:len(search)-1]
 	withoutSlash := search
 
@@ -120,7 +115,7 @@ func (s *Scrapper) IsURLInSlice(search string, array []string) bool {
 }
 
 // IsLinkScanned checks if a link has already been scanned
-func (s *Scrapper) IsLinkScanned(link string, scanned []string) (exists bool) {
+func (s *Scraper) IsLinkScanned(link string, scanned []string) (exists bool) {
 	for _, val := range scanned {
 		if strings.Compare(link, val) == 0 {
 			exists = true
@@ -131,7 +126,7 @@ func (s *Scrapper) IsLinkScanned(link string, scanned []string) (exists bool) {
 }
 
 // getURLEmbeeded from HTML or CSS
-func (s *Scrapper) getURLEmbeeded(body string) (url string) {
+func (s *Scraper) getURLEmbeeded(body string) (url string) {
 	valid := validURL.Find([]byte(body))
 	if valid == nil {
 		return
@@ -169,7 +164,7 @@ func (s *Scrapper) getURLEmbeeded(body string) (url string) {
 }
 
 // GetInsideAttachments gets inside CSS Files
-func (s *Scrapper) GetInsideAttachments(url string) (attachments []string) {
+func (s *Scraper) GetInsideAttachments(url string) (attachments []string) {
 	if commons.IsFinal(url) {
 		// if the url is a final url in a folder, like example.com/path/
 		// this will create the folder "path" and, inside, the index.html file
@@ -208,4 +203,29 @@ func (s *Scrapper) GetInsideAttachments(url string) (attachments []string) {
 	}
 
 	return
+}
+
+func (s *Scraper) hasPaths(url string) bool {
+	return len(strings.Split(url, "/")) > 1
+}
+
+func (s *Scraper) getOnlyPath(url string) (path string) {
+	paths := strings.Split(url, "/")
+	if len(paths) <= 1 {
+		return url
+	}
+
+	total := paths[:len(paths)-1]
+	return strings.Join(total[:], "/")
+}
+
+// GetPath returns only the path, without domain, from the given link
+func (s *Scraper) GetPath(link string) string {
+	return strings.Replace(link, s.Root, "", 1)
+}
+
+// exists returns whether the given file or directory exists
+func (s *Scraper) exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

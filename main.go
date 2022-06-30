@@ -13,49 +13,79 @@
 package main
 
 import (
+	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/antsanchez/go-download-web/commons"
-	"github.com/antsanchez/go-download-web/download"
-	"github.com/antsanchez/go-download-web/scrapper"
+	"github.com/antsanchez/go-download-web/scraper"
 	"github.com/antsanchez/go-download-web/sitemap"
 )
 
-func main() {
-	domain := flag.String("u", "", "URL to copy")
-	newDomain := flag.String("new", "", "New URL")
-	simultaneus := flag.Int("s", 3, "Number of concurrent connections")
-	useQueries := flag.Bool("q", false, "Ignore queries on URLs")
+type Flags struct {
+	// Domain to be scraped
+	Domain *string
+
+	// New Domain to be set
+	NewDomain *string
+
+	// Number of concurrent queries
+	Simultaneus *int
+
+	// Use query parameters on URLs
+	UseQueries *bool
+
+	// Path where to download the files to
+	Path *string
+}
+
+func parseFlags() (flags Flags, err error) {
+	flags.Domain = flag.String("u", "", "URL to copy")
+	flags.NewDomain = flag.String("new", "", "New URL")
+	flags.Simultaneus = flag.Int("s", 3, "Number of concurrent connections")
+	flags.UseQueries = flag.Bool("q", false, "Ignore queries on URLs")
+	flags.Path = flag.String("path", "./website", "Local path for downloaded files")
 	flag.Parse()
 
-	if *domain == "" {
-		log.Fatal("URL cannot be empty! Please, use '-u <URL>'")
+	if *flags.Domain == "" {
+		err = errors.New("URL cannot be empty! Please, use '-u <URL>'")
+		return
 	}
 
-	s := scrapper.New(*useQueries)
-	d := download.New(*domain, *newDomain)
-
-	fmt.Println("Domain:", d.Conf.OldDomain)
-	if *newDomain != "" {
-		fmt.Println("New Domain: ", d.Conf.NewDomain)
-	}
-	fmt.Println("Simultaneus:", *simultaneus)
-	fmt.Println("Use Queries:", s.UseQueries)
-
-	if *simultaneus < 1 {
-		fmt.Println("There can't be less than 1 simulataneous conexions")
-		os.Exit(1)
+	if *flags.Simultaneus <= 0 {
+		err = errors.New("the number of concurrent connections be at least 1'")
+		return
 	}
 
-	scanning := make(chan int, *simultaneus)       // Semaphore
-	newLinks := make(chan []commons.Links, 100000) // New links to scan
-	pages := make(chan commons.Page, 100000)       // Pages scanned
+	log.Println("Domain:", *flags.Domain)
+	if *flags.NewDomain != "" {
+		log.Println("New Domain: ", *flags.NewDomain)
+	}
+	log.Println("Simultaneus:", *flags.Simultaneus)
+	log.Println("Use Queries:", *flags.UseQueries)
+
+	return
+}
+
+func main() {
+	flags, err := parseFlags()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Create directory for downloaded website
+	err = os.MkdirAll(*flags.Path, 0755)
+	if err != nil {
+		log.Println(*flags.Path)
+		log.Fatal(err)
+	}
+
+	scanning := make(chan int, *flags.Simultaneus) // Semaphore
+	newLinks := make(chan []scraper.Links, 100000) // New links to scan
+	pages := make(chan scraper.Page, 100000)       // Pages scanned
 	attachments := make(chan []string, 100000)     // Attachments
 	started := make(chan int, 100000)              // Crawls started
 	finished := make(chan int, 100000)             // Crawls finished
@@ -73,25 +103,29 @@ func main() {
 		close(finished)
 		close(scanning)
 
-		fmt.Printf("\nDuration: %s\n", time.Since(start))
-		fmt.Printf("Number of pages: %6d\n", len(indexed))
+		log.Printf("\nDuration: %s\n", time.Since(start))
+		log.Printf("Number of pages: %6d\n", len(indexed))
 	}()
 
 	// Do First call to domain
-	resp, err := http.Get(*domain)
+	resp, err := http.Get(*flags.Domain)
 	if err != nil {
-		fmt.Println("Domain could not be reached!")
+		log.Println("Domain could not be reached!")
 		return
 	}
-	// Todo: get favourite version of URL here
 	defer resp.Body.Close()
 
-	// Detected root domain
-	commons.Root = resp.Request.URL.String()
+	s := scraper.Scraper{
+		OldDomain:  *flags.Domain,
+		NewDomain:  *flags.NewDomain,
+		Root:       resp.Request.URL.String(),
+		Path:       *flags.Path,
+		UseQueries: *flags.UseQueries,
+	}
 
 	// Take the links from the startsite
-	s.TakeLinks(*domain, started, finished, scanning, newLinks, pages, attachments)
-	seen[*domain] = true
+	s.TakeLinks(*flags.Domain, started, finished, scanning, newLinks, pages, attachments)
+	seen[*flags.Domain] = true
 
 	for {
 		select {
@@ -105,6 +139,12 @@ func main() {
 		case page := <-pages:
 			if !s.IsURLInSlice(page.URL, indexed) {
 				indexed = append(indexed, page.URL)
+				go func() {
+					err := s.SaveHTML(page.URL, page.HTML)
+					if err != nil {
+						log.Println(err)
+					}
+				}()
 			}
 
 			if !page.NoIndex {
@@ -126,28 +166,32 @@ func main() {
 		}
 	}
 
-	// Get Inside Attachments
+	log.Println("\nFinished scraping the site...")
+
+	log.Println("\nDownloading attachments...")
 	for _, attachedFile := range files {
 		if strings.Contains(attachedFile, ".css") {
 			moreAttachments := s.GetInsideAttachments(attachedFile)
 			for _, link := range moreAttachments {
 				if !s.IsURLInSlice(link, files) {
-					fmt.Println("Appended: ", link)
+					log.Println("Appended: ", link)
 					files = append(files, link)
+					go func() {
+						err := s.SaveAttachment(link)
+						if err != nil {
+							log.Println(err)
+						}
+					}()
 				}
 			}
 		}
 	}
 
-	// Create directory for website
-	os.MkdirAll("website", 0755)
+	log.Println("Creating Sitemap...")
+	err = sitemap.CreateSitemap(forSitemap, *flags.Path)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// Create the sitemap
-	sitemap.CreateSitemap(forSitemap, "website/sitemap.xml")
-
-	// Download the complete website
-	d.All(indexed)
-
-	// Download the complete attachments
-	d.Attachments(files)
+	log.Println("Finished.")
 }

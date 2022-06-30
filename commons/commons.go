@@ -1,23 +1,19 @@
 package commons
 
-// Page model
-type Page struct {
-	URL       string
-	Canonical string
-	Links     []Links
-	NoIndex   bool
+type Conf struct {
+	// Root domain Root
+	Root string
+
+	// PATH Path where to save the website
+	Path string
 }
 
-// Links model
-type Links struct {
-	Href string
+func New(root, path string) Conf {
+	return Conf{
+		Root: root,
+		Path: path,
+	}
 }
-
-// Root domain Root
-var Root string
-
-// PATH Path where to save the website
-const PATH = "website/"
 
 // IsInSlice check if the given link is in a slice
 func IsInSlice(search string, array []string) bool {
@@ -32,11 +28,7 @@ func IsInSlice(search string, array []string) bool {
 
 // IsFinal check if the url is a folder-like path, like example.com/path/
 func IsFinal(url string) bool {
-	if string(url[len(url)-1]) == "/" {
-		return true
-	}
-
-	return false
+	return string(url[len(url)-1]) == "/"
 }
 
 // RemoveLastSlash removes the last slash

@@ -1,40 +1,66 @@
-package scrapper
+package scraper
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
 
-	"github.com/antsanchez/go-download-web/commons"
 	"golang.org/x/net/html"
 )
 
-type Scrapper struct {
+type Scraper struct {
+	// Original domain
+	OldDomain string
+
+	// New domain to rewrite the download HTML sites
+	NewDomain string
+
+	// Root domain
+	Root string
+
+	// Path where to save the downloads
+	Path string
+
+	// Use args on URLs
 	UseQueries bool
 }
 
-func New(useQueries bool) Scrapper {
-	return Scrapper{
-		UseQueries: useQueries,
-	}
+// Links model
+type Links struct {
+	Href string
+}
+
+// Page model
+type Page struct {
+	URL       string
+	Canonical string
+	Links     []Links
+	NoIndex   bool
+	HTML      string
 }
 
 // getLinks Get the links from a HTML site
-func (s *Scrapper) getLinks(domain string) (page commons.Page, attachments []string, err error) {
+func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err error) {
 	resp, err := http.Get(domain)
 	if err != nil {
 		return
 	}
 	defer resp.Body.Close()
 
-	doc, err := html.Parse(resp.Body)
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(resp.Body)
+	page.HTML = buf.String()
+
+	doc, err := html.Parse(buf)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
 	page.URL = domain
+
 	foundMeta := false
 
 	var f func(*html.Node)
@@ -52,7 +78,6 @@ func (s *Scrapper) getLinks(domain string) (page commons.Page, attachments []str
 							}
 						}
 					}
-
 				}
 			}
 		}
@@ -80,7 +105,7 @@ func (s *Scrapper) getLinks(domain string) (page commons.Page, attachments []str
 						if s.isValidAttachment(foundLink) {
 							attachments = append(attachments, foundLink)
 						} else if s.isValidLink(foundLink) {
-							page.Links = append(page.Links, commons.Links{Href: foundLink})
+							page.Links = append(page.Links, Links{Href: foundLink})
 						}
 					}
 				}
@@ -132,7 +157,7 @@ func (s *Scrapper) getLinks(domain string) (page commons.Page, attachments []str
 		// Get links
 		if n.Type == html.ElementNode && n.Data == "a" {
 			ok := false
-			newLink := commons.Links{}
+			newLink := Links{}
 
 			for _, a := range n.Attr {
 				if a.Key == "href" {
@@ -164,18 +189,27 @@ func (s *Scrapper) getLinks(domain string) (page commons.Page, attachments []str
 }
 
 // TakeLinks take links from the given site
-func (s *Scrapper) TakeLinks(toScan string, started chan int, finished chan int, scanning chan int, newLinks chan []commons.Links, pages chan commons.Page, attachments chan []string) {
+func (s *Scraper) TakeLinks(
+	toScan string,
+	started chan int,
+	finished chan int,
+	scanning chan int,
+	newLinks chan []Links,
+	pages chan Page,
+	attachments chan []string,
+) {
 	started <- 1
 	scanning <- 1
 	defer func() {
 		<-scanning
 		finished <- 1
-		fmt.Printf("\rStarted: %6d - Finished %6d", len(started), len(finished))
+		fmt.Printf("Started: %6d - Finished %6d", len(started), len(finished))
 	}()
 
 	// Get links
 	page, attached, err := s.getLinks(toScan)
 	if err != nil {
+		fmt.Println(err)
 		return
 	}
 
