@@ -204,7 +204,7 @@ func (s *Scraper) TakeLinks(
 	defer func() {
 		<-scanning
 		finished <- 1
-		fmt.Printf("Started: %6d - Finished %6d\n", len(started), len(finished))
+		fmt.Printf("[%v] Started: %6d - Finished %6d\n", toScan, len(started), len(finished))
 	}()
 
 	// Get links
