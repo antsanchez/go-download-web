@@ -64,8 +64,9 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 
 	foundMeta := false
 
-	var f func(*html.Node)
-	f = func(n *html.Node) {
+	var traverseDOM func(n *html.Node)
+
+	traverseDOM = func(n *html.Node) {
 		for _, a := range n.Attr {
 			if a.Key == "style" {
 				if strings.Contains(a.Val, "url(") {
@@ -182,10 +183,11 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 		}
 
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			f(c)
+			traverseDOM(c)
 		}
 	}
-	f(doc)
+
+	traverseDOM(doc)
 	return
 }
 
