@@ -147,6 +147,7 @@ func main() {
 		select {
 		case links := <-newLinks:
 			for _, link := range links {
+				link := link
 				if !seen[link.Href] {
 					seen[link.Href] = true
 					go s.TakeLinks(link.Href, started, finished, scanning, newLinks, pages, attachments)
