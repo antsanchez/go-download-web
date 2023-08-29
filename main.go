@@ -32,6 +32,9 @@ type Flags struct {
 	// New Domain to be set
 	NewDomain *string
 
+	// URL prefixes/roots that should be included in the scraper
+	IncludedURLs *string
+
 	// Number of concurrent queries
 	Simultaneus *int
 
@@ -45,6 +48,7 @@ type Flags struct {
 func parseFlags() (flags Flags, err error) {
 	flags.Domain = flag.String("u", "", "URL to copy")
 	flags.NewDomain = flag.String("new", "", "New URL")
+	flags.IncludedURLs = flag.String("r", "", "URL prefixes/root paths that should be included in the scraper, in addition to the domain")
 	flags.Simultaneus = flag.Int("s", 3, "Number of concurrent connections")
 	flags.UseQueries = flag.Bool("q", false, "Ignore queries on URLs")
 	flags.Path = flag.String("path", "./website", "Local path for downloaded files")
@@ -115,10 +119,23 @@ func main() {
 	}
 	defer resp.Body.Close()
 
+	roots := []string{}
+	roots = append(roots, resp.Request.URL.String())
+
+	if flags.IncludedURLs != nil && len(*flags.IncludedURLs) > 0 {
+		var urls = strings.Split(*flags.IncludedURLs, ",")
+		for _, url := range urls {
+			if len(url) == 0 {
+				continue
+			}
+			roots = append(roots, url)
+		}
+	}
+
 	s := scraper.Scraper{
 		OldDomain:  *flags.Domain,
 		NewDomain:  *flags.NewDomain,
-		Root:       resp.Request.URL.String(),
+		Roots:      roots,
 		Path:       *flags.Path,
 		UseQueries: *flags.UseQueries,
 	}
@@ -136,15 +153,16 @@ func main() {
 					go s.TakeLinks(link.Href, started, finished, scanning, newLinks, pages, attachments)
 				}
 			}
+
 		case page := <-pages:
 			if !s.IsURLInSlice(page.URL, indexed) {
 				indexed = append(indexed, page.URL)
-				go func() {
-					err := s.SaveHTML(page.URL, page.HTML)
-					if err != nil {
-						log.Println(err)
-					}
-				}()
+
+				err := s.SaveHTML(page.URL, page.HTML)
+				if err != nil {
+					log.Println(err)
+				}
+
 			}
 
 			if !page.NoIndex {
@@ -152,6 +170,7 @@ func main() {
 					forSitemap = append(forSitemap, page.URL)
 				}
 			}
+
 		case attachment := <-attachments:
 			for _, link := range attachment {
 				if !s.IsURLInSlice(link, files) {
@@ -166,25 +185,32 @@ func main() {
 		}
 	}
 
-	log.Println("\nFinished scraping the site...")
+	log.Println("\nFinished crawling the site...")
 
-	log.Println("\nDownloading attachments...")
+	log.Println("\nDownloading attachments... ", len(files))
 	for _, attachedFile := range files {
+		attachedFile := attachedFile
 		if strings.Contains(attachedFile, ".css") {
 			moreAttachments := s.GetInsideAttachments(attachedFile)
 			for _, link := range moreAttachments {
+				link := link
 				if !s.IsURLInSlice(link, files) {
 					log.Println("Appended: ", link)
 					files = append(files, link)
-					go func() {
-						err := s.SaveAttachment(link)
-						if err != nil {
-							log.Println(err)
-						}
-					}()
+
+					err := s.SaveAttachment(link)
+					if err != nil {
+						log.Println(err)
+					}
 				}
 			}
 		}
+
+		err := s.SaveAttachment(attachedFile)
+		if err != nil {
+			log.Println(err)
+		}
+
 	}
 
 	log.Println("Creating Sitemap...")

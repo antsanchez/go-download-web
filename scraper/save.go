@@ -3,6 +3,7 @@ package scraper
 import (
 	"bytes"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -34,12 +35,15 @@ func (s *Scraper) SaveAttachment(url string) (err error) {
 
 	resp, err := http.Get(url)
 	if err != nil {
+		log.Println("Failed retrieving '", url, "' - ", err.Error())
 		return
 	}
 	defer resp.Body.Close()
 
-	f, err := os.Create(s.Path + filepath)
+	absoluteFile := strings.ReplaceAll(s.Path+filepath, "%20", " ")
+	f, err := os.Create(absoluteFile)
 	if err != nil {
+		log.Println("Failed creating '", absoluteFile, "' - ", err.Error())
 		return
 	}
 	defer f.Close()
@@ -75,9 +79,14 @@ func (s *Scraper) SaveHTML(url string, html string) (err error) {
 
 	f, err := os.Create(s.Path + filepath)
 	if err != nil {
+		log.Println("Failed creating '", s.Path+filepath, "' - [", err.Error(), "]")
 		return
 	}
 	defer f.Close()
+
+	for _, root := range s.Roots {
+		html = strings.ReplaceAll(html, root, "")
+	}
 
 	if s.NewDomain != "" && s.OldDomain != s.NewDomain {
 		newStr := strings.ReplaceAll(html, s.OldDomain, s.NewDomain)
