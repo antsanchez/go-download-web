@@ -22,8 +22,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/antsanchez/go-download-web/scraper"
-	"github.com/antsanchez/go-download-web/sitemap"
+	"github.com/CalderWhite/go-download-web/scraper"
+	"github.com/CalderWhite/go-download-web/sitemap"
 )
 
 type Flags struct {
