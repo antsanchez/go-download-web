@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/antsanchez/go-download-web/scraper"
@@ -168,24 +169,42 @@ func main() {
 
 	log.Println("\nFinished scraping the site...")
 
+	// Semaphore for downloading attachments
+	attachmentJobs := make(chan string, len(files))
+	var wg sync.WaitGroup
 	log.Println("\nDownloading attachments...")
-	for _, attachedFile := range files {
-		if strings.Contains(attachedFile, ".css") {
-			moreAttachments := s.GetInsideAttachments(attachedFile)
-			for _, link := range moreAttachments {
-				if !s.IsURLInSlice(link, files) {
-					log.Println("Appended: ", link)
-					files = append(files, link)
-					go func() {
-						err := s.SaveAttachment(link)
-						if err != nil {
-							log.Println(err)
+	for i := 1; i <= *flags.Simultaneus; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for attachedFile := range attachmentJobs {
+				if strings.Contains(attachedFile, ".css") || strings.Contains(attachedFile, ".csv") || strings.Contains(attachedFile, ".parquet") {
+					log.Println(attachedFile)
+					s.SaveAttachment(attachedFile)
+
+					moreAttachments := s.GetInsideAttachments(attachedFile)
+					for _, link := range moreAttachments {
+						if !s.IsURLInSlice(link, files) {
+							log.Println("Appended: ", link)
+							files = append(files, link)
+							go func() {
+								err := s.SaveAttachment(link)
+								if err != nil {
+									log.Println(err)
+								}
+							}()
 						}
-					}()
+					}
 				}
 			}
-		}
+		}()
 	}
+
+	for _, attachedFile := range files {
+		attachmentJobs <- attachedFile
+	}
+
+	wg.Wait()
 
 	log.Println("Creating Sitemap...")
 	err = sitemap.CreateSitemap(forSitemap, *flags.Path)
