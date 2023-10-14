@@ -1,4 +1,4 @@
-module github.com/antsanchez/go-download-web
+module github.com/CalderWhite/go-download-web
 
 go 1.15
 
