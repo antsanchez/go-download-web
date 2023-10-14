@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/antsanchez/go-download-web/commons"
+	"github.com/CalderWhite/go-download-web/commons"
 )
 
 var (
