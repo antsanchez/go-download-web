@@ -204,6 +204,8 @@ func main() {
 		attachmentJobs <- attachedFile
 	}
 
+	close(attachmentJobs)
+
 	wg.Wait()
 
 	log.Println("Creating Sitemap...")
