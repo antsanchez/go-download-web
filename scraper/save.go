@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/antsanchez/go-download-web/commons"
+	"github.com/CalderWhite/go-download-web/commons"
 )
 
 // Download a single link
