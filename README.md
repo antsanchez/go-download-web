@@ -9,7 +9,7 @@ There are still some to-do's, and some refactoring is needed, but the app is alr
 There is nothing special to do here, just download the code, build it as you would do with any other Go app, and you are set to go.
 
 ```bash
-$ git clone https://github.com/antsanchez/go-download-web
+$ git clone https://github.com/CalderWhite/go-download-web
 $ cd go-download-web
 $ go build
 ```

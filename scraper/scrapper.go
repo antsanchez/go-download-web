@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"golang.org/x/net/html"
@@ -155,6 +156,8 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 		}
 
 		// Get links
+		// super lazy alphanumeric checking because I don't want to do regex.
+		alphanumeric := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0987654321"
 		if n.Type == html.ElementNode && n.Data == "a" {
 			ok := false
 			newLink := Links{}
@@ -162,6 +165,10 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 			for _, a := range n.Attr {
 				if a.Key == "href" {
 					link, err := resp.Request.URL.Parse(a.Val)
+
+					if strings.Contains(alphanumeric, string(a.Val[0])) {
+						link, _ = url.Parse(resp.Request.URL.Scheme + "://" + resp.Request.URL.Hostname() + "/" + a.Val)
+					}
 					if err == nil {
 						foundLink := s.sanitizeURL(link.String())
 						if s.isValidLink(foundLink) {
