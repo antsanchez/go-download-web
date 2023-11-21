@@ -178,7 +178,7 @@ func main() {
 		go func() {
 			defer wg.Done()
 			for attachedFile := range attachmentJobs {
-				if strings.Contains(attachedFile, ".css") || strings.Contains(attachedFile, ".csv") || strings.Contains(attachedFile, ".parquet") {
+				if strings.Contains(attachedFile, ".css") || strings.Contains(attachedFile, ".csv") || strings.Contains(attachedFile, ".parquet") || strings.Contains(attachedFile, ".tar") {
 					log.Println(attachedFile)
 					s.SaveAttachment(attachedFile)
 
