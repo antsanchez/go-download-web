@@ -17,8 +17,9 @@ type Scraper struct {
 	// New domain to rewrite the download HTML sites
 	NewDomain string
 
-	// Root domain
-	Root string
+	// Roots contains a range of URLs that can be considered the root
+	// This is useful for scraping sites where content is hosted on a CDN
+	Roots []string
 
 	// Path where to save the downloads
 	Path string
@@ -63,8 +64,9 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 
 	foundMeta := false
 
-	var f func(*html.Node)
-	f = func(n *html.Node) {
+	var traverseDOM func(n *html.Node)
+
+	traverseDOM = func(n *html.Node) {
 		for _, a := range n.Attr {
 			if a.Key == "style" {
 				if strings.Contains(a.Val, "url(") {
@@ -181,10 +183,11 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 		}
 
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			f(c)
+			traverseDOM(c)
 		}
 	}
-	f(doc)
+
+	traverseDOM(doc)
 	return
 }
 
@@ -203,7 +206,7 @@ func (s *Scraper) TakeLinks(
 	defer func() {
 		<-scanning
 		finished <- 1
-		fmt.Printf("Started: %6d - Finished %6d", len(started), len(finished))
+		fmt.Printf("[%v] Started: %6d - Finished %6d\n", toScan, len(started), len(finished))
 	}()
 
 	// Get links

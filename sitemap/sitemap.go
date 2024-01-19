@@ -2,7 +2,7 @@ package sitemap
 
 import (
 	"encoding/xml"
-	"io/ioutil"
+	"os"
 )
 
 const SitemapFile = "sitemap.xml"
@@ -28,9 +28,9 @@ func sitemapPath(filaneme string) string {
 func CreateSitemap(links []string, filename string) error {
 	filename = sitemapPath(filename)
 
-	var total = []byte(xml.Header)
-	total = appendBytes(total, []byte(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`))
-	total = appendBytes(total, []byte("\n"))
+	var data = []byte(xml.Header)
+	data = appendBytes(data, []byte(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`))
+	data = appendBytes(data, []byte("\n"))
 
 	for _, val := range links {
 		pos := URLSitemap{Loc: val}
@@ -38,11 +38,11 @@ func CreateSitemap(links []string, filename string) error {
 		if err != nil {
 			return err
 		}
-		total = appendBytes(total, output)
-		total = appendBytes(total, []byte("\n"))
+		data = appendBytes(data, output)
+		data = appendBytes(data, []byte("\n"))
 	}
 
-	total = appendBytes(total, []byte(`</urlset>`))
+	data = appendBytes(data, []byte(`</urlset>`))
 
-	return ioutil.WriteFile(filename, total, 0644)
+	return os.WriteFile(filename, data, 0644)
 }
