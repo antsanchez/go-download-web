@@ -16,16 +16,16 @@ func New(conf Conf) Scraper {
 	return Scraper{
 		OldDomain:  conf.OldDomain,
 		NewDomain:  conf.NewDomain,
-		Root:       conf.Root,
+		Roots:      conf.Roots,
 		Path:       conf.Path,
 		UseQueries: conf.UseQueries,
 
-		Scanning:    make(chan int, conf.Simultaneus), // Semaphore
-		NewLinks:    make(chan []Links, 100000),       // New links to scan
-		Pages:       make(chan Page, 100000),          // Pages scanned
-		Attachments: make(chan []string, 100000),      // Attachments
-		Started:     make(chan int, 100000),           // Crawls started
-		Finished:    make(chan int, 100000),           // Crawls finished
+		Scanning:    make(chan int, conf.Simultaneous), // Semaphore
+		NewLinks:    make(chan []Links, 100000),        // New links to scan
+		Pages:       make(chan Page, 100000),           // Pages scanned
+		Attachments: make(chan []string, 100000),       // Attachments
+		Started:     make(chan int, 100000),            // Crawls started
+		Finished:    make(chan int, 100000),            // Crawls finished
 
 		Indexed:    []string{},
 		ForSitemap: []string{},

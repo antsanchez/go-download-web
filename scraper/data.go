@@ -9,8 +9,9 @@ type Scraper struct {
 	// New domain to rewrite the download HTML sites
 	NewDomain string
 
-	// Root domain
-	Root string
+	// Roots contains a range of URLs that can be considered the root
+	// This is useful for scraping sites where content is hosted on a CDN
+	Roots []string
 
 	// Path where to save the downloads
 	Path string
@@ -19,7 +20,7 @@ type Scraper struct {
 	UseQueries bool
 
 	// Number of concurrent queries
-	Simultaneus int
+	Simultaneous int
 
 	// Scanning now
 	Scanning chan int
@@ -62,8 +63,12 @@ type Conf struct {
 	// New domain to rewrite the download HTML sites
 	NewDomain string
 
-	// Root domain
-	Root string
+	// URL prefixes/roots that should be included in the scraper
+	IncludedURLs string
+
+	// Roots contains a range of URLs that can be considered the root
+	// This is useful for scraping sites where content is hosted on a CDN
+	Roots []string
 
 	// Path where to save the downloads
 	Path string
@@ -72,7 +77,7 @@ type Conf struct {
 	UseQueries bool
 
 	// Number of concurrent queries
-	Simultaneus int
+	Simultaneous int
 }
 
 // Links model

@@ -10,11 +10,12 @@ import (
 
 // ParseFlags parses the flags
 func parseFlags() (conf scraper.Conf, err error) {
-	conf.OldDomain = *flag.String("u", "", "URL to copy")
-	conf.NewDomain = *flag.String("new", "", "New URL")
-	conf.Simultaneus = *flag.Int("s", 3, "Number of concurrent connections")
-	conf.UseQueries = *flag.Bool("q", false, "Ignore queries on URLs")
-	conf.Path = *flag.String("path", "./website", "Local path for downloaded files")
+	flag.StringVar(&conf.OldDomain, "u", "", "URL to download")
+	flag.StringVar(&conf.NewDomain, "new", "", "New URL")
+	flag.StringVar(&conf.IncludedURLs, "r", "", "URL prefixes/root paths that should be included in the scraper, in addition to the domain")
+	flag.IntVar(&conf.Simultaneous, "s", 3, "Number of concurrent connections")
+	flag.BoolVar(&conf.UseQueries, "q", false, "Ignore queries on URLs")
+	flag.StringVar(&conf.Path, "path", "./website", "Local path for downloaded files")
 	flag.Parse()
 
 	if conf.OldDomain == "" {
@@ -22,7 +23,7 @@ func parseFlags() (conf scraper.Conf, err error) {
 		return
 	}
 
-	if conf.Simultaneus <= 0 {
+	if conf.Simultaneous <= 0 {
 		err = errors.New("the number of concurrent connections be at least 1'")
 		return
 	}
@@ -31,7 +32,7 @@ func parseFlags() (conf scraper.Conf, err error) {
 	if conf.NewDomain != "" {
 		log.Println("New Domain: ", conf.NewDomain)
 	}
-	log.Println("Simultaneus:", conf.Simultaneus)
+	log.Println("Simultaneous:", conf.Simultaneous)
 	log.Println("Use Queries:", conf.UseQueries)
 
 	return

@@ -16,6 +16,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/antsanchez/go-download-web/scraper"
 	"github.com/antsanchez/go-download-web/sitemap"
@@ -35,8 +36,17 @@ func main() {
 	}
 	defer resp.Body.Close()
 
-	// Set the real root domain
-	conf.Root = resp.Request.URL.String()
+	// Prepare the root domains
+	conf.Roots = append(conf.Roots, resp.Request.URL.String())
+	if len(conf.IncludedURLs) > 0 {
+		var urls = strings.Split(conf.IncludedURLs, ",")
+		for _, url := range urls {
+			if len(url) == 0 {
+				continue
+			}
+			conf.Roots = append(conf.Roots, url)
+		}
+	}
 
 	// Create directory for downloaded website
 	err = os.MkdirAll(conf.Path, 0755)

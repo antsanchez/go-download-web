@@ -79,6 +79,10 @@ func (s *Scraper) SaveHTML(url string, html string) (err error) {
 	}
 	defer f.Close()
 
+	for _, root := range s.Roots {
+		html = strings.ReplaceAll(html, root, "")
+	}
+
 	if s.NewDomain != "" && s.OldDomain != s.NewDomain {
 		newStr := strings.ReplaceAll(html, s.OldDomain, s.NewDomain)
 		newContent := bytes.NewBufferString(newStr)

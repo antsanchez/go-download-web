@@ -23,7 +23,12 @@ var (
 
 // isInternLink checks if a link is intern
 func (s *Scraper) isInternLink(link string) bool {
-	return strings.Index(link, s.Root) == 0
+	for _, root := range s.Roots {
+		if strings.Index(link, root) == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // removeQuery removes the query parameters from the given link
@@ -33,7 +38,13 @@ func (s *Scraper) removeQuery(link string) string {
 
 // isStart cheks if the site is the startsite
 func (s *Scraper) isStart(link string) bool {
-	return strings.Compare(link, s.Root) == 0
+	for _, root := range s.Roots {
+		if strings.Compare(link, root) == 0 {
+			log.Println(link, " is the startsite")
+			return true
+		}
+	}
+	return false
 }
 
 // sanitizeURL sanitizes a URL
@@ -275,7 +286,13 @@ func (s *Scraper) getOnlyPath(url string) (path string) {
 
 // GetPath returns only the path, without domain, from the given link
 func (s *Scraper) GetPath(link string) string {
-	return strings.Replace(link, s.Root, "", 1)
+	for _, root := range s.Roots {
+		if strings.Index(link, root) == 0 {
+			return strings.Replace(link, root, "", 1)
+		}
+	}
+
+	return link
 }
 
 // exists returns whether the given file or directory exists
