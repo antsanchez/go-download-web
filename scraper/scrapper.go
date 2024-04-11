@@ -6,39 +6,44 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"golang.org/x/net/html"
 )
 
-type Scraper struct {
-	// Original domain
-	OldDomain string
+// New creates a new Scraper
+func New(conf Conf) Scraper {
+	return Scraper{
+		OldDomain:  conf.OldDomain,
+		NewDomain:  conf.NewDomain,
+		Root:       conf.Root,
+		Path:       conf.Path,
+		UseQueries: conf.UseQueries,
 
-	// New domain to rewrite the download HTML sites
-	NewDomain string
+		Scanning:    make(chan int, conf.Simultaneus), // Semaphore
+		NewLinks:    make(chan []Links, 100000),       // New links to scan
+		Pages:       make(chan Page, 100000),          // Pages scanned
+		Attachments: make(chan []string, 100000),      // Attachments
+		Started:     make(chan int, 100000),           // Crawls started
+		Finished:    make(chan int, 100000),           // Crawls finished
 
-	// Root domain
-	Root string
+		Indexed:    []string{},
+		ForSitemap: []string{},
+		Files:      []string{},
+		StartTime:  time.Now(),
 
-	// Path where to save the downloads
-	Path string
-
-	// Use args on URLs
-	UseQueries bool
+		Seen: make(map[string]bool),
+	}
 }
 
-// Links model
-type Links struct {
-	Href string
-}
-
-// Page model
-type Page struct {
-	URL       string
-	Canonical string
-	Links     []Links
-	NoIndex   bool
-	HTML      string
+// Close closes the channels
+func (s *Scraper) Close() {
+	close(s.Scanning)
+	close(s.NewLinks)
+	close(s.Pages)
+	close(s.Attachments)
+	close(s.Started)
+	close(s.Finished)
 }
 
 // getLinks Get the links from a HTML site
@@ -189,35 +194,104 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 }
 
 // TakeLinks take links from the given site
-func (s *Scraper) TakeLinks(
-	toScan string,
-	started chan int,
-	finished chan int,
-	scanning chan int,
-	newLinks chan []Links,
-	pages chan Page,
-	attachments chan []string,
-) {
-	started <- 1
-	scanning <- 1
+func (s *Scraper) TakeLinks(link string) {
+	s.Started <- 1
+	s.Scanning <- 1
 	defer func() {
-		<-scanning
-		finished <- 1
-		fmt.Printf("Started: %6d - Finished %6d", len(started), len(finished))
+		<-s.Scanning
+		s.Finished <- 1
+		fmt.Printf("Started: %6d - Finished %6d", len(s.Started), len(s.Finished))
 	}()
 
 	// Get links
-	page, attached, err := s.getLinks(toScan)
+	page, attached, err := s.getLinks(link)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
 	// Save Page
-	pages <- page
+	s.Pages <- page
 
-	attachments <- attached
+	s.Attachments <- attached
 
 	// Save links
-	newLinks <- page.Links
+	s.NewLinks <- page.Links
+}
+
+// Scrape scrapes the site
+func (s *Scraper) Scrape() {
+	// Take the links from the startsite
+	seen := make(map[string]bool)
+	s.TakeLinks(s.OldDomain)
+	seen[s.OldDomain] = true
+
+	for {
+		select {
+		case links := <-s.NewLinks:
+			for _, link := range links {
+				if !seen[link.Href] {
+					seen[link.Href] = true
+					go s.TakeLinks(link.Href)
+				}
+			}
+		case page := <-s.Pages:
+			if !s.IsURLInSlice(page.URL, s.Indexed) {
+				s.Indexed = append(s.Indexed, page.URL)
+				go func() {
+					err := s.SaveHTML(page.URL, page.HTML)
+					if err != nil {
+						log.Println(err)
+					}
+				}()
+			}
+
+			if !page.NoIndex {
+				if !s.IsURLInSlice(page.URL, s.ForSitemap) {
+					s.ForSitemap = append(s.ForSitemap, page.URL)
+				}
+			}
+		case attachment := <-s.Attachments:
+			for _, link := range attachment {
+				if !s.IsURLInSlice(link, s.Files) {
+					s.Files = append(s.Files, link)
+				}
+			}
+		}
+
+		// Break the for loop once all scans are finished
+		if len(s.Started) > 1 && len(s.Scanning) == 0 && len(s.Started) == len(s.Finished) {
+			break
+		}
+	}
+}
+
+// DownloadAttachments downloads the attachments
+func (s *Scraper) DownloadAttachments() {
+	for _, attachedFile := range s.Files {
+		attachedFile := attachedFile
+
+		// First, seek for more attachments on the CSS and JS files
+		if strings.Contains(attachedFile, ".css") || strings.Contains(attachedFile, ".js") {
+			moreAttachments := s.GetInsideAttachments(attachedFile)
+			for _, link := range moreAttachments {
+				link := link
+				if !s.IsURLInSlice(link, s.Files) {
+					log.Println("Appended: ", link)
+					s.Files = append(s.Files, link)
+
+					err := s.SaveAttachment(link)
+					if err != nil {
+						log.Println(err)
+					}
+				}
+			}
+		}
+
+		err := s.SaveAttachment(attachedFile)
+		if err != nil {
+			log.Println(err)
+		}
+	}
+
 }

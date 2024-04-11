@@ -13,182 +13,49 @@
 package main
 
 import (
-	"errors"
-	"flag"
 	"log"
 	"net/http"
 	"os"
-	"strings"
-	"time"
 
 	"github.com/antsanchez/go-download-web/scraper"
 	"github.com/antsanchez/go-download-web/sitemap"
 )
 
-type Flags struct {
-	// Domain to be scraped
-	Domain *string
-
-	// New Domain to be set
-	NewDomain *string
-
-	// Number of concurrent queries
-	Simultaneus *int
-
-	// Use query parameters on URLs
-	UseQueries *bool
-
-	// Path where to download the files to
-	Path *string
-}
-
-func parseFlags() (flags Flags, err error) {
-	flags.Domain = flag.String("u", "", "URL to copy")
-	flags.NewDomain = flag.String("new", "", "New URL")
-	flags.Simultaneus = flag.Int("s", 3, "Number of concurrent connections")
-	flags.UseQueries = flag.Bool("q", false, "Ignore queries on URLs")
-	flags.Path = flag.String("path", "./website", "Local path for downloaded files")
-	flag.Parse()
-
-	if *flags.Domain == "" {
-		err = errors.New("URL cannot be empty! Please, use '-u <URL>'")
-		return
-	}
-
-	if *flags.Simultaneus <= 0 {
-		err = errors.New("the number of concurrent connections be at least 1'")
-		return
-	}
-
-	log.Println("Domain:", *flags.Domain)
-	if *flags.NewDomain != "" {
-		log.Println("New Domain: ", *flags.NewDomain)
-	}
-	log.Println("Simultaneus:", *flags.Simultaneus)
-	log.Println("Use Queries:", *flags.UseQueries)
-
-	return
-}
-
 func main() {
-	flags, err := parseFlags()
+	conf, err := parseFlags()
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// Create directory for downloaded website
-	err = os.MkdirAll(*flags.Path, 0755)
-	if err != nil {
-		log.Println(*flags.Path)
-		log.Fatal(err)
-	}
-
-	scanning := make(chan int, *flags.Simultaneus) // Semaphore
-	newLinks := make(chan []scraper.Links, 100000) // New links to scan
-	pages := make(chan scraper.Page, 100000)       // Pages scanned
-	attachments := make(chan []string, 100000)     // Attachments
-	started := make(chan int, 100000)              // Crawls started
-	finished := make(chan int, 100000)             // Crawls finished
-
-	var indexed, forSitemap, files []string
-
-	seen := make(map[string]bool)
-
-	start := time.Now()
-
-	defer func() {
-		close(newLinks)
-		close(pages)
-		close(started)
-		close(finished)
-		close(scanning)
-
-		log.Printf("\nDuration: %s\n", time.Since(start))
-		log.Printf("Number of pages: %6d\n", len(indexed))
-	}()
 
 	// Do First call to domain
-	resp, err := http.Get(*flags.Domain)
+	resp, err := http.Get(conf.OldDomain)
 	if err != nil {
 		log.Println("Domain could not be reached!")
 		return
 	}
 	defer resp.Body.Close()
 
-	s := scraper.Scraper{
-		OldDomain:  *flags.Domain,
-		NewDomain:  *flags.NewDomain,
-		Root:       resp.Request.URL.String(),
-		Path:       *flags.Path,
-		UseQueries: *flags.UseQueries,
+	// Set the real root domain
+	conf.Root = resp.Request.URL.String()
+
+	// Create directory for downloaded website
+	err = os.MkdirAll(conf.Path, 0755)
+	if err != nil {
+		log.Println(conf.Path)
+		log.Fatal(err)
 	}
 
-	// Take the links from the startsite
-	s.TakeLinks(*flags.Domain, started, finished, scanning, newLinks, pages, attachments)
-	seen[*flags.Domain] = true
+	scrap := scraper.New(conf)
+	defer scrap.Close()
 
-	for {
-		select {
-		case links := <-newLinks:
-			for _, link := range links {
-				if !seen[link.Href] {
-					seen[link.Href] = true
-					go s.TakeLinks(link.Href, started, finished, scanning, newLinks, pages, attachments)
-				}
-			}
-		case page := <-pages:
-			if !s.IsURLInSlice(page.URL, indexed) {
-				indexed = append(indexed, page.URL)
-				go func() {
-					err := s.SaveHTML(page.URL, page.HTML)
-					if err != nil {
-						log.Println(err)
-					}
-				}()
-			}
-
-			if !page.NoIndex {
-				if !s.IsURLInSlice(page.URL, forSitemap) {
-					forSitemap = append(forSitemap, page.URL)
-				}
-			}
-		case attachment := <-attachments:
-			for _, link := range attachment {
-				if !s.IsURLInSlice(link, files) {
-					files = append(files, link)
-				}
-			}
-		}
-
-		// Break the for loop once all scans are finished
-		if len(started) > 1 && len(scanning) == 0 && len(started) == len(finished) {
-			break
-		}
-	}
+	scrap.Scrape()
 
 	log.Println("\nFinished scraping the site...")
 
-	log.Println("\nDownloading attachments...")
-	for _, attachedFile := range files {
-		if strings.Contains(attachedFile, ".css") {
-			moreAttachments := s.GetInsideAttachments(attachedFile)
-			for _, link := range moreAttachments {
-				if !s.IsURLInSlice(link, files) {
-					log.Println("Appended: ", link)
-					files = append(files, link)
-					go func() {
-						err := s.SaveAttachment(link)
-						if err != nil {
-							log.Println(err)
-						}
-					}()
-				}
-			}
-		}
-	}
+	scrap.DownloadAttachments()
 
 	log.Println("Creating Sitemap...")
-	err = sitemap.CreateSitemap(forSitemap, *flags.Path)
+	err = sitemap.CreateSitemap(scrap.ForSitemap, scrap.Path)
 	if err != nil {
 		log.Fatal(err)
 	}

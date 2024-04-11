@@ -2,7 +2,8 @@ package sitemap
 
 import (
 	"encoding/xml"
-	"io/ioutil"
+	"os"
+	"path/filepath"
 )
 
 const SitemapFile = "sitemap.xml"
@@ -13,13 +14,10 @@ type URLSitemap struct {
 	Loc     string   `xml:"loc"`
 }
 
-func appendBytes(appendTo []byte, toAppend []byte) []byte {
-	return append(appendTo, toAppend...)
-}
-
-func sitemapPath(filaneme string) string {
-	if filaneme != "" {
-		return filaneme + "/" + SitemapFile
+// sitemapPath returns the path to the sitemap file
+func sitemapPath(filename string) string {
+	if filename != "" {
+		return filepath.Join(filename, SitemapFile)
 	}
 	return SitemapFile
 }
@@ -28,21 +26,40 @@ func sitemapPath(filaneme string) string {
 func CreateSitemap(links []string, filename string) error {
 	filename = sitemapPath(filename)
 
-	var total = []byte(xml.Header)
-	total = appendBytes(total, []byte(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`))
-	total = appendBytes(total, []byte("\n"))
-
-	for _, val := range links {
-		pos := URLSitemap{Loc: val}
-		output, err := xml.MarshalIndent(pos, "  ", "    ")
-		if err != nil {
-			return err
-		}
-		total = appendBytes(total, output)
-		total = appendBytes(total, []byte("\n"))
+	// Create the urlset
+	urlset := &struct {
+		XMLName xml.Name `xml:"urlset"`
+		XMLNS   string   `xml:"xmlns,attr"`
+		URLs    []URLSitemap
+	}{
+		XMLNS: "http://www.sitemaps.org/schemas/sitemap/0.9",
+		URLs:  make([]URLSitemap, len(links)),
+	}
+	for i, link := range links {
+		url := &URLSitemap{Loc: link}
+		urlset.URLs[i] = *url
 	}
 
-	total = appendBytes(total, []byte(`</urlset>`))
+	// Marshal the urlset to XML
+	output, err := xml.MarshalIndent(urlset, "", "  ")
+	if err != nil {
+		return err
+	}
 
-	return ioutil.WriteFile(filename, total, 0644)
+	// Create the file
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Write the XML declaration to the file
+	_, err = file.WriteString(xml.Header)
+	if err != nil {
+		return err
+	}
+
+	// Write the urlset to the file
+	_, err = file.Write(output)
+	return err
 }

@@ -12,10 +12,13 @@ import (
 )
 
 var (
-	extensions = []string{".png", ".jpg", ".jpeg", ".json", ".js", ".tiff", ".pdf", ".txt", ".gif", ".psd", ".ai", "dwg", ".bmp", ".zip", ".tar", ".gzip", ".svg", ".avi", ".mov", ".json", ".xml", ".mp3", ".wav", ".mid", ".ogg", ".acc", ".ac3", "mp4", ".ogm", ".cda", ".mpeg", ".avi", ".swf", ".acg", ".bat", ".ttf", ".msi", ".lnk", ".dll", ".db", ".css"}
-	falseURLs  = []string{"mailto:", "javascript:", "tel:", "whatsapp:", "callto:", "wtai:", "sms:", "market:", "geopoint:", "ymsgr:", "msnim:", "gtalk:", "skype:"}
-	validURL   = regexp.MustCompile(`\(([^()]*)\)`)
-	validCSS   = regexp.MustCompile(`\{(\s*?.*?)*?\}`)
+	extensions     = []string{".png", ".jpg", ".jpeg", ".json", ".js", ".tiff", ".pdf", ".txt", ".gif", ".psd", ".ai", "dwg", ".bmp", ".zip", ".tar", ".gzip", ".svg", ".avi", ".mov", ".json", ".xml", ".mp3", ".wav", ".mid", ".ogg", ".acc", ".ac3", "mp4", ".ogm", ".cda", ".mpeg", ".avi", ".swf", ".acg", ".bat", ".ttf", ".msi", ".lnk", ".dll", ".db", ".css", ".csv", ".parquet", ".tar"}
+	falseURLs      = []string{"mailto:", "javascript:", "tel:", "whatsapp:", "callto:", "wtai:", "sms:", "market:", "geopoint:", "ymsgr:", "msnim:", "gtalk:", "skype:"}
+	validURL       = regexp.MustCompile(`\(([^()]*)\)`)
+	validCSS       = regexp.MustCompile(`\{(\s*?.*?)*?\}`)
+	validJS        = regexp.MustCompile(`import\s+[\w\*\s]+\s+from\s+['"](.*?)['"]`)
+	validJSImport  = regexp.MustCompile(`import\s+['"](.*?)['"]`)
+	validJSRequire = regexp.MustCompile(`require\s*\(\s*['"](.*?)['"]\s*\)`)
 )
 
 // isInternLink checks if a link is intern
@@ -143,6 +146,9 @@ func (s *Scraper) getURLEmbeeded(body string) (url string) {
 	}
 
 	// Remove "
+	if len(url) == 0 {
+		return
+	}
 	if string(url[0]) == `"` {
 		url = url[1:]
 	}
@@ -163,7 +169,7 @@ func (s *Scraper) getURLEmbeeded(body string) (url string) {
 	return url
 }
 
-// GetInsideAttachments gets inside CSS Files
+// GetInsideAttachments gets inside CSS and JS Files
 func (s *Scraper) GetInsideAttachments(url string) (attachments []string) {
 	if commons.IsFinal(url) {
 		// if the url is a final url in a folder, like example.com/path/
@@ -182,19 +188,40 @@ func (s *Scraper) GetInsideAttachments(url string) (attachments []string) {
 	buf.ReadFrom(resp.Body)
 	body := buf.String()
 
-	if strings.Contains(body, "url(") {
-		// Second, search for backgrounds
-		blocks := validCSS.FindAll([]byte(body), -1)
+	// First, search for JavaScript
+	if strings.Contains(url, ".js") {
+		blocks := validJS.FindAll([]byte(body), -1)
 		for _, b := range blocks {
-			rules := strings.Split(string(b), ";")
-			for _, r := range rules {
-				found := s.getURLEmbeeded(r)
-				if found != "" {
-					link, err := resp.Request.URL.Parse(found)
-					if err == nil {
-						foundLink := s.sanitizeURL(link.String())
-						if s.isValidAttachment(foundLink) {
-							attachments = append(attachments, foundLink)
+			// Extract the URL from the import statement or require function
+			found := s.getJSURLEmbedded(string(b))
+			if found != "" {
+				link, err := resp.Request.URL.Parse(found)
+				if err == nil {
+					foundLink := s.sanitizeURL(link.String())
+					if s.isValidAttachment(foundLink) {
+						attachments = append(attachments, foundLink)
+					}
+				}
+			}
+		}
+	}
+
+	// Second, search for CSS
+	if strings.Contains(url, ".css") {
+		if strings.Contains(body, "url(") {
+			// Second, search for backgrounds
+			blocks := validCSS.FindAll([]byte(body), -1)
+			for _, b := range blocks {
+				rules := strings.Split(string(b), ";")
+				for _, r := range rules {
+					found := s.getURLEmbeeded(r)
+					if found != "" {
+						link, err := resp.Request.URL.Parse(found)
+						if err == nil {
+							foundLink := s.sanitizeURL(link.String())
+							if s.isValidAttachment(foundLink) {
+								attachments = append(attachments, foundLink)
+							}
 						}
 					}
 				}
@@ -203,6 +230,33 @@ func (s *Scraper) GetInsideAttachments(url string) (attachments []string) {
 	}
 
 	return
+}
+
+// getJSURLEmbedded from JavaScript
+func (s *Scraper) getJSURLEmbedded(body string) (url string) {
+	// Use a regular expression to find import statements or require functions
+	valid := validJSImport.Find([]byte(body))
+	if valid == nil {
+		valid = validJSRequire.Find([]byte(body))
+	}
+	if valid == nil {
+		return
+	}
+
+	// Extract the URL from the import statement or require function
+	url = string(valid)
+
+	// Remove surrounding quotes
+	if string(url[0]) == `'` || string(url[0]) == `"` {
+		url = url[1:]
+	}
+	if string(url[len(url)-1]) == `'` || string(url[len(url)-1]) == `"` {
+		url = url[:len(url)-1]
+	}
+
+	// To do: check if this is a valid url
+
+	return url
 }
 
 func (s *Scraper) hasPaths(url string) bool {
