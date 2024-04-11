@@ -13,62 +13,67 @@
 package main
 
 import (
+	"errors"
+	"flag"
 	"log"
-	"net/http"
 	"os"
-	"strings"
 
-	"github.com/antsanchez/go-download-web/scraper"
-	"github.com/antsanchez/go-download-web/sitemap"
+	"github.com/antsanchez/go-download-web/pkg/scraper"
+	"github.com/antsanchez/go-download-web/pkg/sitemap"
 )
 
+// ParseFlags parses the flags
+func parseFlags() (conf scraper.Conf, err error) {
+	flag.StringVar(&conf.OldDomain, "u", "", "URL to download")
+	flag.StringVar(&conf.NewDomain, "new", "", "New URL")
+	flag.StringVar(&conf.IncludedURLs, "r", "", "URL prefixes/root paths that should be included in the scraper, in addition to the domain")
+	flag.IntVar(&conf.Simultaneous, "s", 3, "Number of concurrent connections")
+	flag.BoolVar(&conf.UseQueries, "q", false, "Ignore queries on URLs")
+	flag.StringVar(&conf.Path, "path", "./website", "Local path for downloaded files")
+	flag.Parse()
+
+	if conf.OldDomain == "" {
+		err = errors.New("URL cannot be empty! Please, use '-u <URL>'")
+		return
+	}
+
+	if conf.Simultaneous <= 0 {
+		err = errors.New("the number of concurrent connections be at least 1'")
+		return
+	}
+
+	log.Println("Domain:", conf.OldDomain)
+	if conf.NewDomain != "" {
+		log.Println("New Domain: ", conf.NewDomain)
+	}
+	log.Println("Simultaneous:", conf.Simultaneous)
+	log.Println("Use Queries:", conf.UseQueries)
+
+	return
+}
+
 func main() {
+	// Parse the flags
 	conf, err := parseFlags()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Do First call to domain
-	resp, err := http.Get(conf.OldDomain)
-	if err != nil {
-		log.Println("Domain could not be reached!")
-		return
-	}
-	defer resp.Body.Close()
-
-	// Prepare the root domains
-	conf.Roots = append(conf.Roots, resp.Request.URL.String())
-	if len(conf.IncludedURLs) > 0 {
-		var urls = strings.Split(conf.IncludedURLs, ",")
-		for _, url := range urls {
-			if len(url) == 0 {
-				continue
-			}
-			conf.Roots = append(conf.Roots, url)
-		}
-	}
-
 	// Create directory for downloaded website
 	err = os.MkdirAll(conf.Path, 0755)
 	if err != nil {
-		log.Println(conf.Path)
 		log.Fatal(err)
 	}
 
-	scrap := scraper.New(conf)
-	defer scrap.Close()
+	// Create a new scraper
+	scrap := scraper.New(&conf)
 
-	scrap.Scrape()
+	// Run the scraper
+	scrap.Run()
 
-	log.Println("\nFinished scraping the site...")
-
-	scrap.DownloadAttachments()
-
-	log.Println("Creating Sitemap...")
+	// Create sitemap
 	err = sitemap.CreateSitemap(scrap.ForSitemap, scrap.Path)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	log.Println("Finished.")
 }

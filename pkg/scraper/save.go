@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-
-	"github.com/antsanchez/go-download-web/commons"
 )
 
 // Download a single link
@@ -19,11 +17,11 @@ func (s *Scraper) SaveAttachment(url string) (err error) {
 
 	// Get last path
 	if s.hasPaths(filepath) {
-		if commons.IsFinal(filepath) {
+		if IsFinal(filepath) {
 			// if the url is a final url in a folder, like example.com/path/
 			// this will create the folder "path" and, inside, the file
-			filepath = commons.RemoveLastSlash(filepath)
-			url = commons.RemoveLastSlash(url)
+			filepath = RemoveLastSlash(filepath)
+			url = RemoveLastSlash(url)
 		}
 
 		path := s.getOnlyPath(filepath)
@@ -56,7 +54,7 @@ func (s *Scraper) SaveHTML(url string, html string) (err error) {
 	}
 
 	if s.hasPaths(filepath) {
-		if commons.IsFinal(filepath) {
+		if IsFinal(filepath) {
 			// if the url is a final url in a folder, like example.com/path
 			// this will create the folder "path" and, inside, the index.html file
 			if !s.exists(s.Path + filepath) {

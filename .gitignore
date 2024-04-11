@@ -12,5 +12,6 @@
 *.out
 go-download-web
 
-website
 website/*
+
+.DS_Store
