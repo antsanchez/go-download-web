@@ -1,6 +1,10 @@
 package scraper
 
-import "time"
+import (
+	"time"
+
+	"github.com/antsanchez/go-download-web/pkg/get"
+)
 
 type Scraper struct {
 	// Original domain
@@ -54,6 +58,9 @@ type Scraper struct {
 
 	// Start time
 	StartTime time.Time
+
+	// GetInterface
+	Get get.GetInterface
 }
 
 type Conf struct {
@@ -90,6 +97,5 @@ type Page struct {
 	URL       string
 	Canonical string
 	Links     []Links
-	NoIndex   bool
 	HTML      string
 }

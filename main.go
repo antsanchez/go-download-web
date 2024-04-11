@@ -16,10 +16,9 @@ import (
 	"errors"
 	"flag"
 	"log"
-	"os"
 
+	"github.com/antsanchez/go-download-web/pkg/get"
 	"github.com/antsanchez/go-download-web/pkg/scraper"
-	"github.com/antsanchez/go-download-web/pkg/sitemap"
 )
 
 // ParseFlags parses the flags
@@ -59,21 +58,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Create directory for downloaded website
-	err = os.MkdirAll(conf.Path, 0755)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	// Create a new scraper
-	scrap := scraper.New(&conf)
+	scrap := scraper.New(&conf, get.New())
 
 	// Run the scraper
 	scrap.Run()
-
-	// Create sitemap
-	err = sitemap.CreateSitemap(scrap.ForSitemap, scrap.Path)
-	if err != nil {
-		log.Fatal(err)
-	}
 }

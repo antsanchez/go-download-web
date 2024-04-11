@@ -1,8 +1,7 @@
 package scraper
 
 import (
-	"bytes"
-	"net/http"
+	"fmt"
 	"net/url"
 	"os"
 	"regexp"
@@ -10,7 +9,8 @@ import (
 )
 
 var (
-	extensions = []string{
+	renderedExtensions = []string{".html", ".htm", ".php", ".asp", ".aspx", ".jsp", ".cfm", ".cgi", ".pl", ".py", ".rb", ".xml", ".xhtml", ".shtml", ".shtm", ".phtml"}
+	extensions         = []string{
 		".png", ".jpg", ".jpeg", ".json", ".js", ".tiff", ".pdf", ".txt", ".gif", ".psd", ".ai", "dwg", ".bmp", ".zip", ".tar", ".gzip", ".svg",
 		".avi", ".mov", ".xml", ".mp3", ".wav", ".mid", ".ogg", ".acc", ".ac3", "mp4", ".ogm", ".cda", ".mpeg", ".avi", ".swf", ".acg",
 		".bat", ".ttf", ".msi", ".lnk", ".dll", ".db", ".css", ".csv", ".parquet", ".tar", ".gz", ".bz2", ".xz", ".7z", ".rar", ".zip", ".tar.gz",
@@ -18,6 +18,7 @@ var (
 		".flv", ".rm", ".rmvb", ".asf", ".mpg", ".mpeg", ".mpe", ".wmv", ".mp4", ".mkv", ".vob", ".mov", ".qt", ".avi", ".asf", ".rm", ".rmvb",
 		".ico", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods", ".odp", ".odg", ".odf", ".txt", ".rtf", ".pdf", ".epub", ".mobi",
 		".aiff", ".wav", ".mp3", ".aac", ".ogg", ".wma", ".flac", ".alac", ".ape", ".aif", ".mid", ".midi", ".mka", ".opus", ".ra", ".rm", ".sln",
+		".webmanifest", ".manifest",
 	}
 	falseURLs = []string{
 		"mailto:", "javascript:", "tel:", "whatsapp:", "callto:", "wtai:", "sms:", "market:", "geopoint:", "ymsgr:", "msnim:", "gtalk:", "skype:",
@@ -25,7 +26,7 @@ var (
 		"chrome:", "chrome-extension:", "chrome-untrusted:", "chrome-search:", "chrome-native", "chrome-devtools:", "chrome-devtools:", "chrome-devtools:",
 	}
 	validURL       = regexp.MustCompile(`\(([^()]*)\)`)
-	validCSS       = regexp.MustCompile(`\{(\s*?.*?)*?\}`)
+	urlsInCSS      = regexp.MustCompile(`url\(['"]?(.*?)['"]?\)`)
 	validJS        = regexp.MustCompile(`import\s+[\w\*\s]+\s+from\s+['"](.*?)['"]`)
 	validJSImport  = regexp.MustCompile(`import\s+['"](.*?)['"]`)
 	validJSRequire = regexp.MustCompile(`require\s*\(\s*['"](.*?)['"]\s*\)`)
@@ -39,11 +40,6 @@ func (s *Scraper) IsInternLink(link string) bool {
 		}
 	}
 	return false
-}
-
-// RemoveQuery removes the query parameters from the given link
-func (s *Scraper) RemoveQuery(link string) string {
-	return strings.Split(link, "?")[0]
 }
 
 // IsStart cheks if the site is the startsite
@@ -69,11 +65,18 @@ func (s *Scraper) SanitizeURL(link string) string {
 	tram := strings.Split(link, "#")[0]
 
 	if !s.UseQueries {
-		tram = s.RemoveQuery(tram)
+		tram = strings.Split(tram, "?")[0]
 	}
 
-	if string(tram[len(tram)-1]) != "/" {
-		tram = tram + "/"
+	// avoid index out of range
+	if len(tram) == 0 {
+		return tram
+	}
+
+	if !s.IsValidExtension(tram) && !s.HasRenderedExtension(tram) {
+		if string(tram[len(tram)-1]) != "/" {
+			tram = tram + "/"
+		}
 	}
 
 	return tram
@@ -81,6 +84,10 @@ func (s *Scraper) SanitizeURL(link string) string {
 
 // IsValidExtension check if an extension is valid
 func (s *Scraper) IsValidExtension(link string) bool {
+	if !strings.Contains(link, ".") {
+		return false
+	}
+
 	found := link[strings.LastIndex(link, "."):]
 	if found == "" {
 		return false
@@ -95,27 +102,50 @@ func (s *Scraper) IsValidExtension(link string) bool {
 	return false
 }
 
+func (s *Scraper) HasRenderedExtension(link string) bool {
+	if !strings.Contains(link, ".") {
+		return false
+	}
+
+	found := link[strings.LastIndex(link, "."):]
+	if found == "" {
+		return false
+	}
+
+	for _, ext := range renderedExtensions {
+		if strings.Compare(found, ext) == 0 {
+			return true
+		}
+	}
+
+	return false
+}
+
 // IsValidLink checks if the link is a valid url and from the domain
-func (s *Scraper) IsValidLink(link string) (valid string, ok bool) {
+func (s *Scraper) IsValidLink(link string) (ok bool) {
 	if !s.IsInternLink(link) {
-		return "", false
+		return false
 	}
 
 	// check if is a valid url with the url package
 	got, err := url.ParseRequestURI(link)
 	if err != nil {
-		return "", false
+		return false
 	}
 
 	if got.Scheme == "" || got.Host == "" {
-		return "", false
+		return false
 	}
 
-	return got.Scheme + "://" + got.Host + "/" + s.GetPath(link), true
+	return true
 }
 
 // IsValidLink checks if the link is a site and not an attachment
 func (s *Scraper) IsValidSite(link string) bool {
+	if !s.IsInternLink(link) {
+		return false
+	}
+
 	if s.IsStart(link) {
 		return false
 	}
@@ -129,15 +159,24 @@ func (s *Scraper) IsValidSite(link string) bool {
 
 // IsValidAttachment checks if the link is a valid extension, not a site
 func (s *Scraper) IsValidAttachment(link string) bool {
-	if s.IsStart(link) {
+	if !s.IsInternLink(link) {
 		return false
 	}
 
-	if s.IsValidExtension(link) {
-		return true
+	return s.IsValidExtension(s.RemoveTrailingSlash(link))
+}
+
+// RemoveTrailingSlash removes the trailing slash from a link
+func (s *Scraper) RemoveTrailingSlash(link string) string {
+	if len(link) == 0 {
+		return link
 	}
 
-	return false
+	if string(link[len(link)-1]) == "/" {
+		return link[:len(link)-1]
+	}
+
+	return link
 }
 
 // DoesLinkExist checks if a link exists in a given slice
@@ -223,25 +262,23 @@ func (s *Scraper) GetURLEmbedded(body string) (url string) {
 }
 
 // GetInsideAttachments gets inside CSS and JS Files
-func (s *Scraper) GetInsideAttachments(url string) (attachments []string, err error) {
-	if IsFinal(url) {
+func (s *Scraper) GetInsideAttachments(link string) (attachments []string, err error) {
+	if IsFinal(link) {
 		// if the url is a final url in a folder, like example.com/path/
 		// this will create the folder "path" and, inside, the index.html file
-		url = RemoveLastSlash(url)
+		link = RemoveLastSlash(link)
 	}
 
-	resp, err := http.Get(url)
+	resp, buf, err := s.Get.Get(link)
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
 
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(resp.Body)
+	got := resp.Request.URL.String()
 	body := buf.String()
 
 	// First, search for JavaScript
-	if strings.Contains(url, ".js") {
+	if strings.Contains(got, ".js") {
 		blocks := validJS.FindAll([]byte(body), -1)
 		for _, b := range blocks {
 			// Extract the URL from the import statement or require function
@@ -251,6 +288,7 @@ func (s *Scraper) GetInsideAttachments(url string) (attachments []string, err er
 				if err == nil {
 					foundLink := s.SanitizeURL(link.String())
 					if s.IsValidAttachment(foundLink) {
+						fmt.Println("Adding JS attachment:", foundLink)
 						attachments = append(attachments, foundLink)
 					}
 				}
@@ -259,24 +297,30 @@ func (s *Scraper) GetInsideAttachments(url string) (attachments []string, err er
 	}
 
 	// Second, search for CSS
-	if strings.Contains(url, ".css") {
-		if strings.Contains(body, "url(") {
-			// Second, search for backgrounds
-			blocks := validCSS.FindAll([]byte(body), -1)
-			for _, b := range blocks {
-				rules := strings.Split(string(b), ";")
-				for _, r := range rules {
-					found := s.GetURLEmbedded(r)
-					if found != "" {
-						link, err := resp.Request.URL.Parse(found)
-						if err == nil {
-							foundLink := s.SanitizeURL(link.String())
-							if s.IsValidAttachment(foundLink) {
-								attachments = append(attachments, foundLink)
-							}
-						}
-					}
-				}
+	if strings.Contains(got, ".css") {
+
+		matches := urlsInCSS.FindAllStringSubmatch(body, -1)
+		for _, match := range matches {
+
+			// Avoid index out of range
+			if len(match) < 2 {
+				continue
+			}
+
+			// Trim quotes and whitespace
+			urlStr := strings.TrimSpace(match[1])
+
+			// Parse the URL to check if it's valid
+			found, err := resp.Request.URL.Parse(urlStr)
+			if err != nil {
+				fmt.Printf("%q is not a valid URL\n", urlStr)
+				continue
+			}
+
+			foundLink := s.SanitizeURL(found.String())
+			if s.IsValidAttachment(foundLink) {
+				fmt.Println("Adding CSS attachment:", foundLink)
+				attachments = append(attachments, foundLink)
 			}
 		}
 	}
