@@ -1,9 +1,13 @@
 # Go Download Web
-A simple command-line application to download an entire online website, including CSS, JSS, and other assets. 
+A simple command-line application to download an entire online website, including CSS, JSS, Images, and other assets. 
 Coded with Go.
 
 ## Project status
 There are still some to-do's, and some refactoring is needed, but the app is already functional. 
+
+To do: add headless browser support to download JS-generated content.
+To do: resume downloads
+To do: download attachments in parallel
 
 ## Installation
 There is nothing special to do here, just download the code, build it as you would do with any other Go app, and you are set to go.

@@ -1,7 +1,6 @@
 package scraper
 
 import (
-	"fmt"
 	"net/url"
 	"os"
 	"regexp"
@@ -9,7 +8,7 @@ import (
 )
 
 var (
-	renderedExtensions = []string{".html", ".htm", ".php", ".asp", ".aspx", ".jsp", ".cfm", ".cgi", ".pl", ".py", ".rb", ".xml", ".xhtml", ".shtml", ".shtm", ".phtml"}
+	renderedExtensions = []string{".html", ".htm", ".php", ".asp", ".aspx", ".jsp", ".cfm", ".cgi", ".pl", ".py", ".rb", ".shtml", ".shtm", ".phtml"}
 	extensions         = []string{
 		".png", ".jpg", ".jpeg", ".json", ".js", ".tiff", ".pdf", ".txt", ".gif", ".psd", ".ai", "dwg", ".bmp", ".zip", ".tar", ".gzip", ".svg",
 		".avi", ".mov", ".xml", ".mp3", ".wav", ".mid", ".ogg", ".acc", ".ac3", "mp4", ".ogm", ".cda", ".mpeg", ".avi", ".swf", ".acg",
@@ -25,7 +24,6 @@ var (
 		"aim:", "icq:", "irc:", "ircs:", "mumble:", "sip:", "xmpp:", "aim:", "itms:", "itms-apps:", "itms-services:", "data:", "blob:", "about:",
 		"chrome:", "chrome-extension:", "chrome-untrusted:", "chrome-search:", "chrome-native", "chrome-devtools:", "chrome-devtools:", "chrome-devtools:",
 	}
-	validURL       = regexp.MustCompile(`\(([^()]*)\)`)
 	urlsInCSS      = regexp.MustCompile(`url\(['"]?(.*?)['"]?\)`)
 	validJS        = regexp.MustCompile(`import\s+[\w\*\s]+\s+from\s+['"](.*?)['"]`)
 	validJSImport  = regexp.MustCompile(`import\s+['"](.*?)['"]`)
@@ -192,6 +190,12 @@ func (s *Scraper) DoesLinkExist(newLink Links, existingLinks []Links) (exists bo
 
 // IsURLInSlice checks if a URL is in a slice
 func (s *Scraper) IsURLInSlice(search string, array []string) bool {
+	if len(search) == 0 {
+		return false
+	}
+	if len(array) == 0 {
+		return false
+	}
 	withSlash := search[:len(search)-1]
 	withoutSlash := search
 
@@ -218,47 +222,6 @@ func (s *Scraper) IsLinkScanned(link string, scanned []string) (exists bool) {
 	}
 
 	return
-}
-
-// GetURLEmbeedded from HTML or CSS
-func (s *Scraper) GetURLEmbedded(body string) (url string) {
-	valid := validURL.Find([]byte(body))
-	if valid == nil {
-		return
-	}
-
-	url = string(valid)
-
-	// Remove ()
-	if string(url[0]) == `(` {
-		url = url[1:]
-	}
-	if string(url[len(url)-1]) == `)` {
-		url = url[:len(url)-1]
-	}
-
-	// Remove "
-	if len(url) == 0 {
-		return
-	}
-	if string(url[0]) == `"` {
-		url = url[1:]
-	}
-	if string(url[len(url)-1]) == `"` {
-		url = url[:len(url)-1]
-	}
-
-	// Remove '
-	if string(url[0]) == `'` {
-		url = url[1:]
-	}
-	if string(url[len(url)-1]) == `'` {
-		url = url[:len(url)-1]
-	}
-
-	// To do: check if this is a valid url
-
-	return url
 }
 
 // GetInsideAttachments gets inside CSS and JS Files
@@ -288,7 +251,6 @@ func (s *Scraper) GetInsideAttachments(link string) (attachments []string, err e
 				if err == nil {
 					foundLink := s.SanitizeURL(link.String())
 					if s.IsValidAttachment(foundLink) {
-						fmt.Println("Adding JS attachment:", foundLink)
 						attachments = append(attachments, foundLink)
 					}
 				}
@@ -298,11 +260,8 @@ func (s *Scraper) GetInsideAttachments(link string) (attachments []string, err e
 
 	// Second, search for CSS
 	if strings.Contains(got, ".css") {
-
 		matches := urlsInCSS.FindAllStringSubmatch(body, -1)
 		for _, match := range matches {
-
-			// Avoid index out of range
 			if len(match) < 2 {
 				continue
 			}
@@ -313,13 +272,11 @@ func (s *Scraper) GetInsideAttachments(link string) (attachments []string, err e
 			// Parse the URL to check if it's valid
 			found, err := resp.Request.URL.Parse(urlStr)
 			if err != nil {
-				fmt.Printf("%q is not a valid URL\n", urlStr)
 				continue
 			}
 
 			foundLink := s.SanitizeURL(found.String())
 			if s.IsValidAttachment(foundLink) {
-				fmt.Println("Adding CSS attachment:", foundLink)
 				attachments = append(attachments, foundLink)
 			}
 		}
@@ -350,27 +307,46 @@ func (s *Scraper) getJSURLEmbedded(body string) (url string) {
 		url = url[:len(url)-1]
 	}
 
-	// To do: check if this is a valid url
-
 	return url
 }
 
-func (s *Scraper) hasPaths(url string) bool {
-	return len(strings.Split(url, "/")) > 1
-}
-
-func (s *Scraper) getOnlyPath(url string) (path string) {
+// GetPath returns the path of a given URL
+func (s *Scraper) GetPath(url string) (path string) {
 	paths := strings.Split(url, "/")
 	if len(paths) <= 1 {
 		return url
 	}
 
 	total := paths[:len(paths)-1]
-	return strings.Join(total[:], "/")
+	path = strings.Join(total[:], "/")
+
+	if len(path) == 0 {
+		return "/"
+	}
+
+	if string(path[0]) != "/" {
+		path = "/" + path
+	}
+
+	if string(path[len(path)-1]) != "/" {
+		path = path + "/"
+	}
+
+	return
 }
 
-// GetPath returns only the path, without domain, from the given link
-func (s *Scraper) GetPath(link string) string {
+// GetLastFolder returns the last folder of a path
+func (s *Scraper) GetLastFolder(path string) string {
+	paths := strings.Split(path, "/")
+	if len(paths) == 0 {
+		return ""
+	}
+
+	return paths[len(paths)-2]
+}
+
+// RemoveDomain returns only the path, without domain, from the given link
+func (s *Scraper) RemoveDomain(link string) string {
 	for _, root := range s.Roots {
 		if strings.Index(link, root) == 0 {
 			return strings.Replace(link, root, "", 1)
@@ -404,6 +380,9 @@ func IsFinal(url string) bool {
 
 // RemoveLastSlash removes the last slash
 func RemoveLastSlash(url string) string {
+	if len(url) == 0 {
+		return url
+	}
 	if string(url[len(url)-1]) == "/" {
 		return url[:len(url)-1]
 	}

@@ -8,26 +8,76 @@ import (
 	"strings"
 )
 
-// Download a single link
-func (s *Scraper) SaveAttachment(url string) (err error) {
-	filepath := s.GetPath(url)
-	if filepath == "" {
+// PreparePathsFile prepares the folder and filename for a given URL, assuming it's a file
+func (s *Scraper) PreparePathsFile(url string) (folder, filename string) {
+	url = s.RemoveDomain(url)
+	if url == "" {
+		return "", ""
+	}
+
+	folder = s.GetPath(url)
+	if folder == "" {
+		folder = "/"
+	}
+
+	filename = url[strings.LastIndex(url, "/")+1:]
+
+	// If filename is empty, get the last folder as filename
+	if filename == "" && folder != "/" {
+		folder = folder[:len(folder)-1]
+		filename = folder[strings.LastIndex(folder, "/")+1:]
+		folder = folder[:strings.LastIndex(folder, "/")+1]
+	}
+
+	return
+}
+
+// PreparePathsPage prepares the folder and filename for a given URL, assuming it's a page
+func (s *Scraper) PreparePathsPage(url string) (folder, filename string) {
+	url = s.RemoveDomain(url)
+	if url == "" {
+		return "/", "index.html"
+	}
+
+	folder = s.GetPath(url)
+	if folder == "" {
+		folder = "/"
+	}
+
+	// check if last path has a renderable extension
+	if len(folder) > 1 && IsFinal(url) {
+		last := s.GetLastFolder(folder)
+		if s.HasRenderedExtension(RemoveLastSlash(last)) {
+			filename = last
+			folder = folder[:len(folder)-1]
+			folder = strings.Replace(folder, last, "", 1)
+			return
+		}
+	}
+
+	filename = url[strings.LastIndex(url, "/")+1:]
+	if filename == "" {
+		filename = "index.html"
 		return
 	}
 
-	// Get last path
-	if s.hasPaths(filepath) {
-		if IsFinal(filepath) {
-			// if the url is a final url in a folder, like example.com/path/
-			// this will create the folder "path" and, inside, the file
-			filepath = RemoveLastSlash(filepath)
-			url = RemoveLastSlash(url)
-		}
+	if !s.HasRenderedExtension(filename) {
+		folder = folder + filename + "/"
+		filename = "index.html"
+	}
 
-		path := s.getOnlyPath(filepath)
-		if !s.exists(s.Path + path) {
-			os.MkdirAll(s.Path+path, 0755) // first create directory
-		}
+	return
+
+}
+
+// Download a single link
+func (s *Scraper) SaveAttachment(url string) (err error) {
+	folder, filename := s.PreparePathsFile(url)
+	folder = s.Path + folder
+	final := folder + filename
+
+	if !s.exists(folder) {
+		os.MkdirAll(folder, 0755) // first create directory
 	}
 
 	resp, err := http.Get(url)
@@ -36,7 +86,7 @@ func (s *Scraper) SaveAttachment(url string) (err error) {
 	}
 	defer resp.Body.Close()
 
-	f, err := os.Create(s.Path + filepath)
+	f, err := os.Create(final)
 	if err != nil {
 		return
 	}
@@ -48,30 +98,15 @@ func (s *Scraper) SaveAttachment(url string) (err error) {
 
 // Download a single link
 func (s *Scraper) SaveHTML(url string, html string) (err error) {
-	filepath := s.GetPath(url)
-	if filepath == "" {
-		filepath = "/index.html"
+	folder, filename := s.PreparePathsPage(url)
+	folder = s.Path + folder
+	final := folder + filename
+
+	if !s.exists(folder) {
+		os.MkdirAll(folder, 0755) // first create directory
 	}
 
-	if s.hasPaths(filepath) {
-		if IsFinal(filepath) {
-			// if the url is a final url in a folder, like example.com/path
-			// this will create the folder "path" and, inside, the index.html file
-			if !s.exists(s.Path + filepath) {
-				os.MkdirAll(s.Path+filepath, 0755) // first create directory
-				filepath = filepath + "index.html"
-			}
-		} else {
-			// if the url is not a final url in a folder, like example.com/path/bum.html
-			// this will create the folder "path" and, inside, the bum.html file
-			path := s.getOnlyPath(filepath)
-			if !s.exists(s.Path + path) {
-				os.MkdirAll(s.Path+path, 0755) // first create directory
-			}
-		}
-	}
-
-	f, err := os.Create(s.Path + filepath)
+	f, err := os.Create(final)
 	if err != nil {
 		return
 	}

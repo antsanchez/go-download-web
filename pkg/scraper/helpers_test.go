@@ -1,17 +1,16 @@
 package scraper_test
 
 import (
-	"net/url"
-	"path/filepath"
 	"testing"
 
+	"github.com/antsanchez/go-download-web/pkg/console"
 	"github.com/antsanchez/go-download-web/pkg/get"
 	"github.com/antsanchez/go-download-web/pkg/scraper"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestIsInternLink(t *testing.T) {
-	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New())
+	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New(), console.New())
 
 	// Test intern links
 	assert.True(t, s.IsInternLink("http://example.com/path"))
@@ -33,7 +32,7 @@ func TestIsInternLink(t *testing.T) {
 }
 
 func TestIsStart(t *testing.T) {
-	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New())
+	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New(), console.New())
 
 	// Test start links
 	assert.True(t, s.IsStart("http://example.com"))
@@ -47,7 +46,7 @@ func TestIsStart(t *testing.T) {
 }
 
 func TestSanitizeURL(t *testing.T) {
-	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New())
+	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New(), console.New())
 
 	// Test valid links
 	assert.Equal(t, "http://example.com/path/", s.SanitizeURL("http://example.com/path"))
@@ -81,7 +80,7 @@ func TestSanitizeURL(t *testing.T) {
 }
 
 func TestIsValidExtension(t *testing.T) {
-	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New())
+	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New(), console.New())
 
 	// Test valid extensions
 	assert.False(t, s.IsValidExtension("http://example.com/path/file.html"))
@@ -135,7 +134,7 @@ func TestIsValidExtension(t *testing.T) {
 }
 
 func TestIsValidAttachment(t *testing.T) {
-	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New())
+	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New(), console.New())
 
 	// Test valid attachments
 	assert.True(t, s.IsValidAttachment("http://example.com/path/file.css"))
@@ -187,7 +186,7 @@ func TestIsValidAttachment(t *testing.T) {
 }
 
 func TestDoesLinkExist(t *testing.T) {
-	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New())
+	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New(), console.New())
 
 	// Create existing links
 	existingLinks := []scraper.Links{
@@ -234,7 +233,7 @@ func TestDoesLinkExist(t *testing.T) {
 }
 
 func TestIsURLInSlice(t *testing.T) {
-	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New())
+	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New(), console.New())
 
 	// Test existing URLs
 	urls := []string{
@@ -340,7 +339,7 @@ func TestIsURLInSlice(t *testing.T) {
 }
 
 func TestIsLinkScanned(t *testing.T) {
-	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New())
+	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New(), console.New())
 
 	// Test scanned links
 	links := []string{
@@ -441,21 +440,4 @@ func TestIsLinkScanned(t *testing.T) {
 	for _, link := range nonScannedLinks {
 		assert.False(t, s.IsLinkScanned(link, links))
 	}
-}
-
-func TestGetURLEmbedded(t *testing.T) {
-	s := scraper.New(&scraper.Conf{OldDomain: "http://example.com"}, get.New())
-
-	// Test valid URLs
-	validURLs := []string{
-		`url("http://example.com/path/file.css")`,
-		`url('http://example.com/path/file.js')`,
-	}
-	for _, vu := range validURLs {
-		u, err := url.Parse(s.GetURLEmbedded(vu))
-		assert.NoError(t, err)
-		assert.Equal(t, "http://example.com/path/file"+filepath.Ext(u.Path), u.String())
-	}
-
-	// Todo: Test invalid URLs
 }

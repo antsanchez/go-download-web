@@ -17,6 +17,7 @@ import (
 	"flag"
 	"log"
 
+	"github.com/antsanchez/go-download-web/pkg/console"
 	"github.com/antsanchez/go-download-web/pkg/get"
 	"github.com/antsanchez/go-download-web/pkg/scraper"
 )
@@ -41,13 +42,6 @@ func parseFlags() (conf scraper.Conf, err error) {
 		return
 	}
 
-	log.Println("Domain:", conf.OldDomain)
-	if conf.NewDomain != "" {
-		log.Println("New Domain: ", conf.NewDomain)
-	}
-	log.Println("Simultaneous:", conf.Simultaneous)
-	log.Println("Use Queries:", conf.UseQueries)
-
 	return
 }
 
@@ -59,7 +53,7 @@ func main() {
 	}
 
 	// Create a new scraper
-	scrap := scraper.New(&conf, get.New())
+	scrap := scraper.New(&conf, get.New(), console.New())
 
 	// Run the scraper
 	scrap.Run()

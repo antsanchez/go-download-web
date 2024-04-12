@@ -3,6 +3,7 @@ package scraper
 import (
 	"time"
 
+	"github.com/antsanchez/go-download-web/pkg/console"
 	"github.com/antsanchez/go-download-web/pkg/get"
 )
 
@@ -61,6 +62,9 @@ type Scraper struct {
 
 	// GetInterface
 	Get get.GetInterface
+
+	// Console
+	Con console.TerminalInterface
 }
 
 type Conf struct {
