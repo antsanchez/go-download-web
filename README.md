@@ -63,10 +63,16 @@ $ ./go-download-web -h
 
 This project uses [uber-go/mock](https://github.com/uber-go/mock) to generate mocks for testing. To generate mocks, run the following commands:
 
+For the console:
 ```bash
 mockgen -destination=pkg/console/mock_console.go -package=console github.com/antsanchez/go-download-web/pkg/scraper Console
+```
+
+For the HTTP client:
+```bash
 mockgen -destination=pkg/get/mock_get.go -package=get github.com/antsanchez/go-download-web/pkg/scraper HttpGet
 ```
+
 
 These commands generate mocks for the `Console` and `HttpGet` interfaces in the `scraper` package. The generated mocks are saved in the `pkg/console` and `pkg/get` packages, respectively.
 
