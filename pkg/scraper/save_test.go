@@ -3,8 +3,6 @@ package scraper_test
 import (
 	"testing"
 
-	"github.com/antsanchez/go-download-web/pkg/console"
-	"github.com/antsanchez/go-download-web/pkg/get"
 	"github.com/antsanchez/go-download-web/pkg/scraper"
 )
 
@@ -30,8 +28,7 @@ func TestPreparePathsFile(t *testing.T) {
 		{Original: "https://example.com/path/paht3/file.mp3", Folder: "/path/paht3/", Filename: "file.mp3"},
 	}
 
-	// Create a new scraper
-	s := scraper.New(&scraper.Conf{OldDomain: "https://example.com"}, get.New(), console.New())
+	s := initiate(t, &scraper.Config{OldDomain: "https://example.com/"})
 
 	for _, path := range paths {
 		folder, filename := s.PreparePathsFile(path.Original)
@@ -58,8 +55,7 @@ func TestPreparePathsPage(t *testing.T) {
 		{Original: "https://example.com/moviecam.shtml", Folder: "/", Filename: "moviecam.shtml"},
 	}
 
-	// Create a new scraper
-	s := scraper.New(&scraper.Conf{OldDomain: "https://example.com"}, get.New(), console.New())
+	s := initiate(t, &scraper.Config{OldDomain: "https://example.com"})
 
 	for _, path := range paths {
 		folder, filename := s.PreparePathsPage(path.Original)

@@ -8,8 +8,11 @@ import (
 )
 
 var (
+	// Extensions that are rendered. These are treated differently
 	renderedExtensions = []string{".html", ".htm", ".php", ".asp", ".aspx", ".jsp", ".cfm", ".cgi", ".pl", ".py", ".rb", ".shtml", ".shtm", ".phtml"}
-	extensions         = []string{
+
+	// Extensions to be downloaded as file
+	extensions = []string{
 		".png", ".jpg", ".jpeg", ".json", ".js", ".tiff", ".pdf", ".txt", ".gif", ".psd", ".ai", "dwg", ".bmp", ".zip", ".tar", ".gzip", ".svg",
 		".avi", ".mov", ".xml", ".mp3", ".wav", ".mid", ".ogg", ".acc", ".ac3", "mp4", ".ogm", ".cda", ".mpeg", ".avi", ".swf", ".acg",
 		".bat", ".ttf", ".msi", ".lnk", ".dll", ".db", ".css", ".csv", ".parquet", ".tar", ".gz", ".bz2", ".xz", ".7z", ".rar", ".zip", ".tar.gz",
@@ -19,14 +22,24 @@ var (
 		".aiff", ".wav", ".mp3", ".aac", ".ogg", ".wma", ".flac", ".alac", ".ape", ".aif", ".mid", ".midi", ".mka", ".opus", ".ra", ".rm", ".sln",
 		".webmanifest", ".manifest",
 	}
+
+	// False URLs
 	falseURLs = []string{
 		"mailto:", "javascript:", "tel:", "whatsapp:", "callto:", "wtai:", "sms:", "market:", "geopoint:", "ymsgr:", "msnim:", "gtalk:", "skype:",
 		"aim:", "icq:", "irc:", "ircs:", "mumble:", "sip:", "xmpp:", "aim:", "itms:", "itms-apps:", "itms-services:", "data:", "blob:", "about:",
 		"chrome:", "chrome-extension:", "chrome-untrusted:", "chrome-search:", "chrome-native", "chrome-devtools:", "chrome-devtools:", "chrome-devtools:",
 	}
-	urlsInCSS      = regexp.MustCompile(`url\(['"]?(.*?)['"]?\)`)
-	validJS        = regexp.MustCompile(`import\s+[\w\*\s]+\s+from\s+['"](.*?)['"]`)
-	validJSImport  = regexp.MustCompile(`import\s+['"](.*?)['"]`)
+
+	// Regexp to find URLs in CSS
+	urlsInCSS = regexp.MustCompile(`url\(['"]?(.*?)['"]?\)`)
+
+	// Regexp to find JavaScript imports
+	validJS = regexp.MustCompile(`import\s+[\w\*\s]+\s+from\s+['"](.*?)['"]`)
+
+	// Regexp to find JavaScript imports
+	validJSImport = regexp.MustCompile(`import\s+['"](.*?)['"]`)
+
+	// Regexp to find JavaScript require
 	validJSRequire = regexp.MustCompile(`require\s*\(\s*['"](.*?)['"]\s*\)`)
 )
 
@@ -100,6 +113,7 @@ func (s *Scraper) IsValidExtension(link string) bool {
 	return false
 }
 
+// HasRenderedExtension checks if the link has a rendered extension
 func (s *Scraper) HasRenderedExtension(link string) bool {
 	if !strings.Contains(link, ".") {
 		return false
@@ -232,12 +246,11 @@ func (s *Scraper) GetInsideAttachments(link string) (attachments []string, err e
 		link = RemoveLastSlash(link)
 	}
 
-	resp, buf, err := s.Get.Get(link)
+	got, _, buf, err := s.Get.Get(link)
 	if err != nil {
 		return
 	}
 
-	got := resp.Request.URL.String()
 	body := buf.String()
 
 	// First, search for JavaScript
@@ -247,9 +260,9 @@ func (s *Scraper) GetInsideAttachments(link string) (attachments []string, err e
 			// Extract the URL from the import statement or require function
 			found := s.getJSURLEmbedded(string(b))
 			if found != "" {
-				link, err := resp.Request.URL.Parse(found)
+				link, err := s.Get.ParseURL(got, found)
 				if err == nil {
-					foundLink := s.SanitizeURL(link.String())
+					foundLink := s.SanitizeURL(link)
 					if s.IsValidAttachment(foundLink) {
 						attachments = append(attachments, foundLink)
 					}
@@ -270,12 +283,12 @@ func (s *Scraper) GetInsideAttachments(link string) (attachments []string, err e
 			urlStr := strings.TrimSpace(match[1])
 
 			// Parse the URL to check if it's valid
-			found, err := resp.Request.URL.Parse(urlStr)
+			found, err := s.Get.ParseURL(got, urlStr)
 			if err != nil {
 				continue
 			}
 
-			foundLink := s.SanitizeURL(found.String())
+			foundLink := s.SanitizeURL(found)
 			if s.IsValidAttachment(foundLink) {
 				attachments = append(attachments, foundLink)
 			}

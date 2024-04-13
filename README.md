@@ -43,3 +43,7 @@ Please make sure to update tests as appropriate.
 
 ## License
 [MIT](https://choosealicense.com/licenses/mit/)
+
+## Generate Mocks
+mockgen -destination=pkg/console/mock_console.go -package=console github.com/antsanchez/go-download-web/pkg/scraper Console
+mockgen -destination=pkg/get/mock_get.go -package=get github.com/antsanchez/go-download-web/pkg/scraper HttpGet

@@ -73,7 +73,7 @@ func (s *Scraper) PreparePathsPage(url string) (folder, filename string) {
 // Download a single link
 func (s *Scraper) SaveAttachment(url string) (err error) {
 	folder, filename := s.PreparePathsFile(url)
-	folder = s.Path + folder
+	folder = s.DownloadPath + folder
 	final := folder + filename
 
 	if !s.exists(folder) {
@@ -99,7 +99,7 @@ func (s *Scraper) SaveAttachment(url string) (err error) {
 // Download a single link
 func (s *Scraper) SaveHTML(url string, html string) (err error) {
 	folder, filename := s.PreparePathsPage(url)
-	folder = s.Path + folder
+	folder = s.DownloadPath + folder
 	final := folder + filename
 
 	if !s.exists(folder) {

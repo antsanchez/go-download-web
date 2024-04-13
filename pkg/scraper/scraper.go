@@ -2,83 +2,13 @@ package scraper
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/antsanchez/go-download-web/pkg/console"
-	"github.com/antsanchez/go-download-web/pkg/get"
 	"golang.org/x/net/html"
 )
 
-// New creates a new Scraper
-func New(conf *Conf, getter get.GetInterface, con console.TerminalInterface) Scraper {
-
-	con.AddStatus("Checking domain")
-
-	// Get the root domain
-	resp, _, err := getter.Get(conf.OldDomain)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	correct := RemoveLastSlash(resp.Request.URL.String())
-
-	// Prepare the roots
-	conf.Roots = append(conf.Roots, correct)
-	if len(conf.IncludedURLs) > 0 {
-		var urls = strings.Split(conf.IncludedURLs, ",")
-		for _, url := range urls {
-			if len(url) == 0 {
-				continue
-			}
-			url = strings.TrimSpace(url)
-			url = RemoveLastSlash(url)
-			conf.Roots = append(conf.Roots, url)
-		}
-	}
-
-	con.AddDomain(correct)
-
-	con.AddStatus("Initiating scraper")
-
-	return Scraper{
-		OldDomain:  conf.OldDomain,
-		NewDomain:  conf.NewDomain,
-		Roots:      conf.Roots,
-		Path:       conf.Path,
-		UseQueries: conf.UseQueries,
-
-		Scanning:    make(chan int, conf.Simultaneous), // Semaphore
-		NewLinks:    make(chan []Links, 100000),        // New links to scan
-		Pages:       make(chan Page, 100000),           // Pages scanned
-		Attachments: make(chan []string, 100000),       // Attachments
-		Started:     make(chan int, 100000),            // Crawls started
-		Finished:    make(chan int, 100000),            // Crawls finished
-
-		Indexed:    []string{},
-		ForSitemap: []string{},
-		Files:      []string{},
-		StartTime:  time.Now(),
-
-		Seen: make(map[string]bool),
-
-		Get: getter,
-		Con: con,
-	}
-}
-
-// Close closes the channels
-func (s *Scraper) Close() {
-	close(s.Scanning)
-	close(s.NewLinks)
-	close(s.Pages)
-	close(s.Attachments)
-	close(s.Started)
-	close(s.Finished)
-}
-
+// Run runs the scraper
 func (s *Scraper) Run() {
 	defer s.Close()
 	s.Scrape()
@@ -87,17 +17,17 @@ func (s *Scraper) Run() {
 
 // getLinks Get the links from a HTML site
 func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err error) {
-	resp, buf, err := s.Get.Get(domain)
+	got, status, buf, err := s.Get.Get(domain)
 	if err != nil {
 		s.Con.AddErrors(err.Error())
 		return
 	}
 
 	// If rediection, get the new domain
-	if resp.StatusCode == http.StatusMovedPermanently || resp.StatusCode == http.StatusFound {
-		s.NewDomain = resp.Header.Get("Location")
-	} else if resp.StatusCode != http.StatusOK {
-		return page, attachments, fmt.Errorf("status code error: %d %s on %s", resp.StatusCode, resp.Status, domain)
+	if status == http.StatusMovedPermanently || status == http.StatusFound {
+		domain = got
+	} else if status != http.StatusOK {
+		return page, attachments, fmt.Errorf("status code error: %d on %s", status, domain)
 	}
 
 	page.HTML = buf.String()
@@ -126,12 +56,12 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 					urlStr := strings.TrimSpace(match[1])
 
 					// Parse the URL to check if it's valid
-					found, err := resp.Request.URL.Parse(urlStr)
+					found, err := s.Get.ParseURL(domain, urlStr)
 					if err != nil {
 						continue
 					}
 
-					foundLink := s.SanitizeURL(found.String())
+					foundLink := s.SanitizeURL(found)
 					if s.IsValidAttachment(foundLink) {
 						attachments = append(attachments, foundLink)
 					}
@@ -143,9 +73,9 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 		if n.Type == html.ElementNode && n.Data == "link" {
 			for _, a := range n.Attr {
 				if a.Key == "href" {
-					link, err := resp.Request.URL.Parse(a.Val)
+					link, err := s.Get.ParseURL(domain, a.Val)
 					if err == nil {
-						foundLink := s.SanitizeURL(link.String())
+						foundLink := s.SanitizeURL(link)
 						if s.IsValidAttachment(foundLink) {
 							attachments = append(attachments, s.RemoveTrailingSlash(foundLink))
 						} else if s.IsValidSite(foundLink) {
@@ -162,9 +92,9 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 				if c.Type == html.ElementNode && c.Data == "link" {
 					for _, a := range c.Attr {
 						if a.Key == "href" {
-							link, err := resp.Request.URL.Parse(a.Val)
+							link, err := s.Get.ParseURL(domain, a.Val)
 							if err == nil {
-								foundLink := s.SanitizeURL(link.String())
+								foundLink := s.SanitizeURL(link)
 								if s.IsValidAttachment(foundLink) {
 									attachments = append(attachments, foundLink)
 								}
@@ -175,9 +105,9 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 				if c.Type == html.ElementNode && c.Data == "script" {
 					for _, a := range c.Attr {
 						if a.Key == "src" {
-							link, err := resp.Request.URL.Parse(a.Val)
+							link, err := s.Get.ParseURL(domain, a.Val)
 							if err == nil {
-								foundLink := s.SanitizeURL(link.String())
+								foundLink := s.SanitizeURL(link)
 								if s.IsValidAttachment(foundLink) {
 									attachments = append(attachments, foundLink)
 								}
@@ -192,9 +122,9 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 		if n.Type == html.ElementNode && n.Data == "script" {
 			for _, a := range n.Attr {
 				if a.Key == "src" {
-					link, err := resp.Request.URL.Parse(a.Val)
+					link, err := s.Get.ParseURL(domain, a.Val)
 					if err == nil {
-						foundLink := s.SanitizeURL(link.String())
+						foundLink := s.SanitizeURL(link)
 						if s.IsValidAttachment(foundLink) {
 							attachments = append(attachments, foundLink)
 						}
@@ -207,9 +137,9 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 		if n.Type == html.ElementNode && n.Data == "img" {
 			for _, a := range n.Attr {
 				if a.Key == "src" {
-					link, err := resp.Request.URL.Parse(a.Val)
+					link, err := s.Get.ParseURL(domain, a.Val)
 					if err == nil {
-						foundLink := s.SanitizeURL(link.String())
+						foundLink := s.SanitizeURL(link)
 						if s.IsValidAttachment(foundLink) {
 							attachments = append(attachments, foundLink)
 						}
@@ -218,9 +148,9 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 				if a.Key == "srcset" {
 					links := strings.Split(a.Val, " ")
 					for _, val := range links {
-						link, err := resp.Request.URL.Parse(val)
+						link, err := s.Get.ParseURL(domain, val)
 						if err == nil {
-							foundLink := s.SanitizeURL(link.String())
+							foundLink := s.SanitizeURL(link)
 							if s.IsValidAttachment(foundLink) {
 								attachments = append(attachments, foundLink)
 							}
@@ -237,9 +167,9 @@ func (s *Scraper) getLinks(domain string) (page Page, attachments []string, err 
 
 			for _, a := range n.Attr {
 				if a.Key == "href" {
-					link, err := resp.Request.URL.Parse(a.Val)
+					link, err := s.Get.ParseURL(domain, a.Val)
 					if err == nil {
-						foundLink := s.SanitizeURL(link.String())
+						foundLink := s.SanitizeURL(link)
 						if s.IsValidSite(foundLink) {
 							ok = true
 							newLink.Href = foundLink

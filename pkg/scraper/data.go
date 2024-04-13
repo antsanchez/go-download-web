@@ -1,11 +1,27 @@
 package scraper
 
 import (
+	"bytes"
 	"time"
-
-	"github.com/antsanchez/go-download-web/pkg/console"
-	"github.com/antsanchez/go-download-web/pkg/get"
 )
+
+// Console interface
+type Console interface {
+	AddDomain(string)
+	AddStatus(string)
+	AddStarted()
+	AddFinished()
+	AddAttachments()
+	AddDownloaded()
+	AddDownloading()
+	AddErrors(string)
+}
+
+// HttpGet interface
+type HttpGet interface {
+	ParseURL(baseURLString, relativeURLString string) (final string, err error)
+	Get(link string) (final string, status int, buff *bytes.Buffer, err error)
+}
 
 type Scraper struct {
 	// Original domain
@@ -19,7 +35,7 @@ type Scraper struct {
 	Roots []string
 
 	// Path where to save the downloads
-	Path string
+	DownloadPath string
 
 	// Use args on URLs
 	UseQueries bool
@@ -61,34 +77,10 @@ type Scraper struct {
 	StartTime time.Time
 
 	// GetInterface
-	Get get.GetInterface
+	Get HttpGet
 
 	// Console
-	Con console.TerminalInterface
-}
-
-type Conf struct {
-	// Original domain
-	OldDomain string
-
-	// New domain to rewrite the download HTML sites
-	NewDomain string
-
-	// URL prefixes/roots that should be included in the scraper
-	IncludedURLs string
-
-	// Roots contains a range of URLs that can be considered the root
-	// This is useful for scraping sites where content is hosted on a CDN
-	Roots []string
-
-	// Path where to save the downloads
-	Path string
-
-	// Use args on URLs
-	UseQueries bool
-
-	// Number of concurrent queries
-	Simultaneous int
+	Con Console
 }
 
 // Links model

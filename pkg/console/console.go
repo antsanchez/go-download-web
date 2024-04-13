@@ -6,18 +6,7 @@ import (
 	"time"
 )
 
-type TerminalInterface interface {
-	AddDomain(domain string)
-	AddStatus(status string)
-	AddStarted()
-	AddFinished()
-	AddAttachments()
-	AddDownloading()
-	AddDownloaded()
-	AddErrors(err string)
-}
-
-type Terminal struct {
+type Console struct {
 	out   ouput
 	mutex sync.Mutex
 }
@@ -35,10 +24,10 @@ type ouput struct {
 	start       time.Time
 }
 
-func New() *Terminal {
+func New() *Console {
 	// Clear the console // call this only once
 	fmt.Print("\033[2J")
-	return &Terminal{
+	return &Console{
 		out: ouput{
 			status: "Starting",
 			start:  time.Now(),
@@ -47,7 +36,7 @@ func New() *Terminal {
 }
 
 // Println prints the output, clearing the entire console before printing
-func (t *Terminal) print() {
+func (t *Console) print() {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
@@ -78,44 +67,44 @@ func (t *Terminal) print() {
 	fmt.Printf("\033[11;1HTime: %s		\n", time.Since(t.out.start))
 }
 
-func (t *Terminal) AddDomain(domain string) {
+func (t *Console) AddDomain(domain string) {
 	t.out.domain = domain
 	t.print()
 }
 
-func (t *Terminal) AddStatus(status string) {
+func (t *Console) AddStatus(status string) {
 	t.out.status = status
 	t.print()
 }
 
-func (t *Terminal) AddStarted() {
+func (t *Console) AddStarted() {
 	t.out.started++
 	t.out.scanning++
 	t.print()
 }
 
-func (t *Terminal) AddFinished() {
+func (t *Console) AddFinished() {
 	t.out.scanning--
 	t.out.finished++
 	t.print()
 }
 
-func (t *Terminal) AddAttachments() {
+func (t *Console) AddAttachments() {
 	t.out.attachments++
 	t.print()
 }
 
-func (t *Terminal) AddDownloaded() {
+func (t *Console) AddDownloaded() {
 	t.out.downloaded++
 	t.print()
 }
 
-func (t *Terminal) AddDownloading() {
+func (t *Console) AddDownloading() {
 	t.out.downloading++
 	t.print()
 }
 
-func (t *Terminal) AddErrors(err string) {
+func (t *Console) AddErrors(err string) {
 	t.out.status = err
 	t.out.errors++
 	t.print()
